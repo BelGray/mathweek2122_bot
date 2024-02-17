@@ -13,11 +13,11 @@ class Admin:
     def test(test_mode: bool):
         '''Декоратор тестирования функционала бота. Команда становится доступной только админам в режиме тестирования'''
         def wrapper(call):
-            def inner(message: types.Message):
+            async def inner(message: types.Message):
                 if test_mode:
                     if Admin.is_admin(message.from_user.id):
-                        call(message)
+                        await call(message)
                 else:
-                    call(message)
+                    await call(message)
             return inner
         return wrapper
