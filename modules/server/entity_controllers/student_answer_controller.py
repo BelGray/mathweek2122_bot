@@ -6,23 +6,42 @@ from modules.server.entity_controllers.main_controller import ServerRequests
 
 class StudentAnswerController(ServerRequests):
 
-    # todo: Дописать метод для указания задания всем ученикам класса. POST (taskID, classNumber)
+    @ServerRequests.request_log(HTTPMethods.POST)
+    async def set_student_easy_answer(self, student_answer_id: int, student_telegram_id: int,
+                                      task_id: int) -> aiohttp.ClientResponse:
+        """Присвоить вариант ответа ученика заданию"""
+
+        endpoint = f"answer.setStudentEasyAnswer?studentTelegramId={student_telegram_id}&taskId={task_id}&studentAnswerId={student_answer_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url=super().url + endpoint) as response:
+                return response
 
     @ServerRequests.request_log(HTTPMethods.POST)
-    async def set_student_answer(self, answer_id: int, points: int, student_telegram_id: int, task_id: int) -> aiohttp.ClientResponse:
-        """Присвоить ответ ученика заданию"""
+    async def set_student_custom_answer(self, custom_student_answer: str, student_telegram_id: int,
+                                        task_id: int) -> aiohttp.ClientResponse:
+        """Присвоить свой ответ ученика заданию"""
 
-        endpoint = f"answer.setStudentAnswer?answerId={answer_id}&points={points}&studentTelegramId={student_telegram_id}&taskId={task_id}"
+        endpoint = f"answer.setStudentCustomAnswer?studentTelegramId={student_telegram_id}&taskId={task_id}&CustomStudentAnswer={custom_student_answer}"
         async with aiohttp.ClientSession() as session:
             async with session.post(url=super().url + endpoint) as response:
                 return response
 
     @ServerRequests.request_log(HTTPMethods.POST)
     async def assign_task_to_student(self, student_telegram_id: int,
-                                 task_id: int) -> aiohttp.ClientResponse:
+                                     task_id: int) -> aiohttp.ClientResponse:
         """Присвоить задание ученику"""
 
         endpoint = f"answer.assignToStudent?studentTelegramId={student_telegram_id}&taskId={task_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url=super().url + endpoint) as response:
+                return response
+
+    @ServerRequests.request_log(HTTPMethods.POST)
+    async def assign_task_to_students_by_class(self, class_number: int,
+                                               task_id: int) -> aiohttp.ClientResponse:
+        """Присвоить задание ученикам параллели классов"""
+
+        endpoint = f"answer.assignToStudentsByClassNumber?taskId={task_id}&classNumber={class_number}"
         async with aiohttp.ClientSession() as session:
             async with session.post(url=super().url + endpoint) as response:
                 return response
