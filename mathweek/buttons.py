@@ -8,3 +8,9 @@ TechSupportButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='⚙️ Обратиться в техническую поддержку', url=Support.BOT.value)))
 TasksSupportButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='📚 Обратиться в поддержку по заданиям', url=Support.TASKS.value)))
+
+StopRegNameButtonClient = (InlineKeyboardMarkup(row_width=1)
+                   .insert(InlineKeyboardButton(text='️🛑 Завершить регистрацию', callback_data="stop_reg_name")))
+
+StopRegLastnameButtonClient = (InlineKeyboardMarkup(row_width=1)
+                   .insert(InlineKeyboardButton(text='️🛑 Завершить регистрацию', callback_data="stop_reg_lastname")))

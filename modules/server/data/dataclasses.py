@@ -2,6 +2,7 @@ import dataclasses
 
 from modules.server.data.enums import TaskTypes, Subjects
 
+# буквы классов на момент 2023-2024 годов
 student_class_letters = {
     5: ("А", "В", "Г", "Д", "И", "К", "Л", "Т"),
     6: ("А", "В", "Е", "Д", "И", "К", "Т"),

@@ -39,3 +39,11 @@ class StudentController(ServerRequests):
         async with aiohttp.ClientSession() as session:
             async with session.get(url=super().url + endpoint) as response:
                 return response
+
+    @ServerRequests.request_log(HTTPMethods.DELETE)
+    async def delete_student(self, telegram_id: int) -> aiohttp.ClientResponse:
+        """Удалить ученика"""
+        endpoint = f"student.deleteByTelegramId?telegramId={telegram_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=super().url + endpoint) as response:
+                return response
