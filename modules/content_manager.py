@@ -1,3 +1,4 @@
+import io
 import os
 
 from PIL import Image, ImageDraw, ImageFont
@@ -26,4 +27,7 @@ class ContentManager:
             str(http_response_status),
             font=font,
             fill='#7B00FF')
-        return image
+        buffer = io.BytesIO()
+        image.save(buffer, format='png')
+        buffer.seek(0)
+        return buffer

@@ -9,6 +9,8 @@ class BotCommandsEnum(enum.Enum):
     EVENT_CALENDAR = 'event_calendar'
     PROFILE = 'profile'
 
+    handler = '[обработка промежуточного события]'
+
 async def set_default_commands(dp):
     """Команды бота"""
     await dp.bot.set_my_commands(

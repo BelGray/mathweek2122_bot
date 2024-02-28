@@ -14,3 +14,8 @@ StopRegNameButtonClient = (InlineKeyboardMarkup(row_width=1)
 
 StopRegLastnameButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='️🛑 Завершить регистрацию', callback_data="stop_reg_lastname")))
+
+ConfirmClassNumberButtonClient = (InlineKeyboardMarkup(row_width=1)
+                   .insert(InlineKeyboardButton(text='️🛑 Завершить регистрацию', callback_data="stop_class_reg"))
+                   .insert(InlineKeyboardButton(text='️✅ Подтвердить', callback_data="confirm_class"))
+                    )

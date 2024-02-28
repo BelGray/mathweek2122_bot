@@ -1,4 +1,6 @@
 import aiogram.types
+from aiogram.types import InputFile
+
 from mathweek.buttons import RegButtonClient, TechSupportButtonClient
 from mathweek.loader import bot, state_manager
 from modules.content_manager import ContentManager
@@ -32,7 +34,7 @@ def check_user_registered(call):
                   f"При получении данных пользователя с Telegram ID {message.from_user.id} сервер выдал ошибку {result.status}")
             await bot.send_photo(chat_id=message.chat.id,
                                  caption=f'❌ При попытке найти данные об ученике на сервере, произошла ошибка: HTTP {result.status}.',
-                                 photo=ContentManager.make_server_error_image(result.status),
+                                 photo=InputFile(ContentManager.make_server_error_image(result.status)),
                                  reply_markup=TechSupportButtonClient
                                  )
 
@@ -48,7 +50,7 @@ async def register_new_student(message: aiogram.types.Message, student: Student)
         await bot.send_message(chat_id=message.chat.id,
                                text=f'🗝️ Ты успешно зарегистрирован(-а) как <b>{student.name} {student.lastname} {student.class_number}{student.class_letter}</b>',
                                parse_mode='HTML')
-    if result.status == 400:
+    elif result.status == 400:
         log.e(register_new_student.__name__,
               f'Ученик {student.name} {student.lastname} {student.class_number}{student.class_letter} уже существует в базе данных.')
         with open('system_images/user_exists.png', 'rb') as image:
@@ -63,7 +65,7 @@ async def register_new_student(message: aiogram.types.Message, student: Student)
               f"Что-то пошло не так при регистрации пользователя с Telegram ID {student.telegram_id}. HTTP статус: {result.status}")
         await bot.send_photo(chat_id=message.chat.id,
                              caption=f'❌ Что-то пошло не так при регистрации нового ученика. HTTP {result.status}',
-                             photo=ContentManager.make_server_error_image(result.status),
+                             photo=InputFile(ContentManager.make_server_error_image(result.status)),
                              reply_markup=TechSupportButtonClient
                              )
 

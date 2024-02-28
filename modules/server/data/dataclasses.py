@@ -13,7 +13,6 @@ student_class_letters = {
     11: ("К",)
 }
 
-
 @dataclasses.dataclass
 class TaskAnswer:
     id: int

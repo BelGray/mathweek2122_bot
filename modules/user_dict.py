@@ -12,7 +12,7 @@ class User:
 class UserRegData(dict):
     """Словарь пользователей Telegram. Используется для учета пользователя ботом при выполнении команд"""
 
-    async def set(self, telegram_id: int, user: User):
+    async def set(self, telegram_id: int, user: User = User(None, None, None, None)):
         """Добавить id, если его нет в словаре"""
         if not self.is_involved(telegram_id):
             self[telegram_id] = user

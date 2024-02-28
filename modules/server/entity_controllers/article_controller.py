@@ -20,7 +20,7 @@ class ArticleController(ServerRequests):
             "text": article.text
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(url=super().url + endpoint, data=data) as response:
+            async with session.post(url=super().url + endpoint, json=data) as response:
                 return response
 
     @ServerRequests.request_log(HTTPMethods.GET)

@@ -1,5 +1,5 @@
 import aiohttp
-
+import json
 from modules.server.data.dataclasses import Student
 from modules.server.data.enums import HTTPMethods
 from modules.server.entity_controllers.main_controller import ServerRequests
@@ -21,7 +21,7 @@ class StudentController(ServerRequests):
             "classLetter": student.class_letter
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(url=super().url + endpoint, data=data) as response:
+            async with session.post(url=super().url + endpoint, json=data) as response:
                 return response
 
     @ServerRequests.request_log(HTTPMethods.GET)
