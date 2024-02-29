@@ -6,17 +6,14 @@ import aiogram
 from mathweek.bot_commands import BotCommandsEnum
 from mathweek.loader import bot
 from mathweek.logger import log
+from modules.server.data.enums import HandlerType
 
 
-class Statuses(enum.Enum):
+class BotMode(enum.Enum):
     PRODUCTION = 0
     DEVELOPMENT = 1
     TESTING = 2
 
-
-class HandlerType(enum.Enum):
-    MESSAGE = lambda message: message['chat']['id']
-    CALLBACK = lambda message: message['message']['chat']['id']
 
 class Support(enum.Enum):
     BOT = "https://t.me/+Gr-kjdpbtZVkMmVi"
@@ -32,14 +29,14 @@ class Admin:
         return True if user_id in Admin.__admins else False
 
     @staticmethod
-    def bot_mode(status: Statuses, command: BotCommandsEnum, handler_type: HandlerType = HandlerType.MESSAGE):
+    def bot_mode(status: BotMode, command: BotCommandsEnum, handler_type: HandlerType = HandlerType.MESSAGE):
         '''Декоратор статуса бота. Команда становится доступной только админам в режиме тестирования и разработки'''
 
         def wrapper(call: types.FunctionType):
             async def inner(message: aiogram.types.Message):
                 chat_id = handler_type(message)
                 log.i('bot_mode', f'Пользователь {message.from_user.username} вызвал команду /{command.value}')
-                if status == Statuses.TESTING:
+                if status == BotMode.TESTING:
                     if Admin.is_admin(message.from_user.id):
                         await call(message)
                     else:
@@ -47,7 +44,7 @@ class Admin:
                             await bot.send_photo(chat_id=chat_id,
                                                  caption='🔧 Ведутся технические работы. Функционал бота временно недоступен.',
                                                  photo=image)
-                elif status == Statuses.DEVELOPMENT:
+                elif status == BotMode.DEVELOPMENT:
                     if Admin.is_admin(message.from_user.id):
                         await call(message)
                     else:
@@ -56,7 +53,7 @@ class Admin:
                                                  caption='💻 Ведется разработка функционала. Бот временно недоступен.',
                                                  photo=image)
 
-                elif status == Statuses.PRODUCTION:
+                elif status == BotMode.PRODUCTION:
                     await call(message)
 
             return inner

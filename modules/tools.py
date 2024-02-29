@@ -4,41 +4,46 @@ from aiogram.types import InputFile
 from mathweek.buttons import RegButtonClient, TechSupportButtonClient
 from mathweek.loader import bot, state_manager
 from modules.content_manager import ContentManager
+from modules.server.data.enums import HandlerType
 from modules.server.entity_controllers.student_controller import *
 from mathweek.logger import log
 from modules.server.requests_instance import student_con
 
 
-def check_user_registered(call):
+def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
     """Декоратор проверки наличия пользователя в базе данных"""
 
-    async def wrapper(message: aiogram.types.Message):
-        await state_manager.detect_command_call()
-        controller = student_con
-        result: aiohttp.ClientResponse = await controller.get_student(telegram_id=message.from_user.id)
-        if result.status == 404:
-            log.w(check_user_registered.__name__,
-                  f"Пользователя с Telegram ID {message.from_user.id} нет в базе данных (404)")
-            with open('system_images/auth_required.png', 'rb') as image:
-                await bot.send_photo(chat_id=message.chat.id,
-                                     caption='❌ Чтобы пользоваться функционалом бота, тебе нужно зарегистрироваться как ученик школы № 2122.\n\n⚠️ Разработчики имеют право отстранить ученика от участия в событии, если будут указаны фальшивые данные при регистрации!',
-                                     photo=image,
-                                     reply_markup=RegButtonClient
+    def wrap(call):
+        async def wrapper(mes: aiogram.types.Message):
+            await state_manager.detect_command_call()
+            controller = student_con
+            chat_id = handler_type(mes)
+            result: aiohttp.ClientResponse = await controller.get_student(telegram_id=mes.from_user.id)
+            if result.status == 404:
+                log.w(check_user_registered.__name__,
+                      f"Пользователя с Telegram ID {mes.from_user.id} нет в базе данных (404)")
+                with open('system_images/auth_required.png', 'rb') as image:
+                    await bot.send_photo(chat_id=chat_id,
+                                         caption='❌ Чтобы пользоваться функционалом бота, тебе нужно зарегистрироваться как ученик школы № 2122.\n\n⚠️ Разработчики имеют право отстранить ученика от участия в событии, если будут указаны фальшивые данные при регистрации!',
+                                         photo=image,
+                                         reply_markup=RegButtonClient
+                                         )
+            elif result.status == 200:
+                log.s(check_user_registered.__name__,
+                      f'Пользователь с Telegram ID {mes.from_user.id} присутствует в базе данных (200)')
+                await call(mes)
+            else:
+                log.e(check_user_registered.__name__,
+                      f"При получении данных пользователя с Telegram ID {mes.from_user.id} сервер выдал ошибку {result.status}")
+                await bot.send_photo(chat_id=chat_id,
+                                     caption=f'❌ При попытке найти данные об ученике на сервере, произошла ошибка: HTTP {result.status}.',
+                                     photo=InputFile(ContentManager.make_server_error_image(result.status)),
+                                     reply_markup=TechSupportButtonClient
                                      )
-        elif result.status == 200:
-            log.s(check_user_registered.__name__,
-                  f'Пользователь с Telegram ID {message.from_user.id} присутствует в базе данных (200)')
-            await call(message)
-        else:
-            log.e(check_user_registered.__name__,
-                  f"При получении данных пользователя с Telegram ID {message.from_user.id} сервер выдал ошибку {result.status}")
-            await bot.send_photo(chat_id=message.chat.id,
-                                 caption=f'❌ При попытке найти данные об ученике на сервере, произошла ошибка: HTTP {result.status}.',
-                                 photo=InputFile(ContentManager.make_server_error_image(result.status)),
-                                 reply_markup=TechSupportButtonClient
-                                 )
 
-    return wrapper
+        return wrapper
+
+    return wrap
 
 
 async def register_new_student(message: aiogram.types.Message, student: Student) -> aiohttp.ClientResponse:

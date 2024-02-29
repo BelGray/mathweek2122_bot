@@ -7,11 +7,12 @@ from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from mathweek.buttons import (RegButtonClient, TechSupportButtonClient, TasksSupportButtonClient,
-                              StopRegLastnameButtonClient, StopRegNameButtonClient, ConfirmClassNumberButtonClient)
+from mathweek.buttons import *
+from mathweek.message_text import *
+from modules.execution_controller import ExecutionController
 from modules.server.data.dataclasses import student_class_letters, Student
 from modules.server.requests_instance import student_con
-from mathweek.admin import Statuses, Admin, HandlerType
+from mathweek.admin import BotMode, Admin, HandlerType
 from mathweek.bot_commands import set_default_commands, BotCommandsEnum
 from mathweek.loader import dp, state_manager, bot
 from mathweek.logger import log
@@ -24,7 +25,7 @@ from modules.user_list import UserList
 
 # todo: Написать основные команды. Написать класс с методами основного оформления сообщений бота.
 
-mode = Statuses.DEVELOPMENT
+mode = BotMode.DEVELOPMENT  # <- Режим, в котором сейчас находится бот
 
 reg_users = UserList()
 reg_users_data = UserRegData()
@@ -47,18 +48,31 @@ async def on_startup(dispatcher):
 
 @dp.message_handler(commands=[BotCommandsEnum.START.value])
 @Admin.bot_mode(mode, BotCommandsEnum.START)
-@check_user_registered
+@ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
+@check_user_registered(HandlerType.MESSAGE)
 async def start(message: types.Message):
-    text = f"""📐 Привет, ученик! Добро пожаловать в бота по событию <b>«Неделя математики»</b> в <i>ГБОУ школе №2122 имени О. А. Юрасова</i>.
+    await bot.send_message(chat_id=message.chat.id, text=start_text, reply_markup=StartButtonClient, parse_mode='HTML')
 
-🤔 <b>Неделя математики</b> - это неделя, на протяжении которой ученики <i>5-11</i> классов проходят различные викторины и задания в боте, изучают интересные факты о предметах технического направления: <b>математика, физика, информатика</b>.
-<blockquote>Для подробной информации введи /start</blockquote>
 
-📅 <b>Неделя математики</b> 2024: <code>04.03.2024 - 13.03.2024</code>
-"""
+@dp.callback_query_handler(text='bot_about')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def bot_about_button_callback(callback: types.CallbackQuery):
+    await callback.message.edit_text(text=bot_about_text, parse_mode='HTML', reply_markup=StartGoBackButtonClient)
+
+
+@dp.callback_query_handler(text='go_back_start')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def bot_about_button_callback(callback: types.CallbackQuery):
+    await callback.message.edit_text(text=start_text, parse_mode='HTML', reply_markup=StartButtonClient)
+
 
 @dp.callback_query_handler(text='reg')
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def reg_button_callback(message: types.Message):
     if reg_users.is_involved(message.from_user.id):
         return
@@ -78,6 +92,7 @@ async def reg_button_callback(message: types.Message):
 
 
 @dp.message_handler(state=RegName.name)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def process_reg_name(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.finish()
@@ -91,6 +106,7 @@ async def process_reg_name(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(state=RegLastname.lastname)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def process_reg_lastname(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.finish()
@@ -105,6 +121,8 @@ async def process_reg_lastname(message: types.Message, state: FSMContext):
 
 
 @dp.callback_query_handler(Text(startswith='letter_'))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def class_letter_choice_button_callback(callback: types.CallbackQuery):
     user: User = reg_users_data.get(callback.from_user.id)
     if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(callback.from_user.id) and user.class_letter is None:
@@ -123,6 +141,8 @@ async def class_letter_choice_button_callback(callback: types.CallbackQuery):
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 
 @dp.callback_query_handler(Text(startswith='class_'))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def class_number_choice_button_callback(callback: types.CallbackQuery):
     user: User = reg_users_data.get(callback.from_user.id)
     if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(callback.from_user.id) and user.class_number is None:
@@ -134,6 +154,8 @@ async def class_number_choice_button_callback(callback: types.CallbackQuery):
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 
 @dp.callback_query_handler(text='confirm_class')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def confirm_class_button_callback(message: types.Message):
     user: User = reg_users_data.get(message.from_user.id)
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id) and user.class_number is not None:
@@ -144,7 +166,11 @@ async def confirm_class_button_callback(message: types.Message):
                                reply_markup=markup, parse_mode='HTML')
         return
     await bot.delete_message(chat_id=message['message']['chat']['id'], message_id=message['message']['message_id'])
+
+
 @dp.callback_query_handler(text='stop_class_reg')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def stop_class_reg_button_callback(message: types.Message):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await reg_users_data.remove(message.from_user.id)
@@ -159,6 +185,8 @@ async def stop_class_reg_button_callback(message: types.Message):
 
 
 @dp.callback_query_handler(text='stop_reg_name', state=RegName.name)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def stop_reg_name_button_callback(message: types.Message, state: FSMContext):
     await state.reset_state()
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
@@ -174,6 +202,8 @@ async def stop_reg_name_button_callback(message: types.Message, state: FSMContex
 
 
 @dp.callback_query_handler(text='stop_reg_lastname', state=RegLastname.lastname)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def stop_reg_lastname_button_callback(message: types.Message, state: FSMContext):
     await state.reset_state()
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
