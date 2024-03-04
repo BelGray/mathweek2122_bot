@@ -19,16 +19,17 @@ class ExecutionController:
     def catch_exception(bot_mode: BotMode, handler_type: HandlerType = HandlerType.MESSAGE):
         """Перехват исключения и его отображение пользователю"""
         def wrap(call):
-            async def wrapper(message: aiogram.types.Message, state: FSMContext = None):
+            async def wrapper(*args):
+                message: aiogram.types.Message = args[0]
                 if bot_mode == BotMode.PRODUCTION or bot_mode == BotMode.TESTING:
                     try:
-                        await call(message)
+                        await call(*args)
                     except Exception as e:
                         await MessageDrawer(message, handler_type).error(str(e))
                         log.e(call.__name__, "Вызов исключения: " + str(e))
                         warnings.warn(str(e), ExecutionControllerWarning)
                 else:
-                    (await call(message)) if state is None else (await call(message, state))
+                    await call(*args)
 
             return wrapper
         return wrap

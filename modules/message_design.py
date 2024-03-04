@@ -63,7 +63,7 @@ class MessageDrawer:
         return text
 
     async def quiz(self, variants_list: list, label: str):
-        text = f'🧩 {label}'
+        text = f'🧩 Викторина. \n"{label}"'
         true_var = 0
         random.shuffle(variants_list)
         variants = []

@@ -42,8 +42,10 @@ task_id_input = UserData()
 
 user_input = UserData()
 
+
 class AnswerInput(StatesGroup):
     answer = State()
+
 
 class ConfirmDelete(StatesGroup):
     code = State()
@@ -269,7 +271,6 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(Text(startswith="taskanswer_"))
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
 async def taskanswer_button_callback(callback: types.CallbackQuery):
     data = callback.data.split("_")
     task_id = int(data[1])
@@ -277,20 +278,22 @@ async def taskanswer_button_callback(callback: types.CallbackQuery):
     task = (await task_con.get_task(task_id)).json
     day_checker = await check_calendar_day(task['day'])
     if day_checker == DayAvailability.AVAILABLE:
-        await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ", reply_markup=StopAnswerButtonClient)
+        await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ",
+                               reply_markup=StopAnswerButtonClient)
         await AnswerInput.answer.set()
     else:
         await bot.send_message(chat_id=callback.message.chat.id, text="⛔ На это задание ответить нельзя")
 
+
 @dp.callback_query_handler(text='stop_answer', state=AnswerInput.answer)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
-async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMContext):
+async def stop_answer_button_callback(message: types.Message, state: FSMContext):
     await state.reset_state()
-    await task_id_input.remove(callback.from_user.id)
+    await task_id_input.remove(message.from_user.id)
 
-    await bot.send_message(chat_id=callback.message.chat.id, text="⛔ Ввод ответа отменен")
+    await bot.send_message(chat_id=message['message']['chat']['id'], text="⛔ Ввод ответа отменен")
+
 
 @dp.message_handler(state=AnswerInput.answer)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)

@@ -22,7 +22,7 @@ class Support(enum.Enum):
 
 
 class Admin:
-    __admins = (1066757578, 995631274, 5255516914, 638377681)
+    __admins = (1066757578, 995631274, 5255516914, 638377681, 1498070696)
 
     @staticmethod
     def is_admin(user_id: int):
@@ -34,12 +34,13 @@ class Admin:
         '''Декоратор статуса бота. Команда становится доступной только админам в режиме тестирования и разработки'''
 
         def wrapper(call: types.FunctionType):
-            async def inner(message: aiogram.types.Message, state: FSMContext = None):
+            async def inner(*args):
+                message: aiogram.types.Message = args[0]
                 chat_id = handler_type(message)
                 log.i('bot_mode', f'Пользователь {message.from_user.username} вызвал команду /{command.value}')
                 if status == BotMode.TESTING:
                     if Admin.is_admin(message.from_user.id):
-                        await call(message)
+                        await call(*args)
                     else:
                         with open('system_images/development_mode.png', 'rb') as image:
                             await bot.send_photo(chat_id=chat_id,
@@ -47,7 +48,7 @@ class Admin:
                                                  photo=image)
                 elif status == BotMode.DEVELOPMENT:
                     if Admin.is_admin(message.from_user.id):
-                        await call(message)
+                        await call(*args)
                     else:
                         with open('system_images/development_mode.png', 'rb') as image:
                             await bot.send_photo(chat_id=chat_id,
@@ -55,7 +56,7 @@ class Admin:
                                                  photo=image)
 
                 elif status == BotMode.PRODUCTION:
-                    await call(message)
+                    await call(*args)
 
             return inner
 

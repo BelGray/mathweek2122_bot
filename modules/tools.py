@@ -65,7 +65,8 @@ def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
     """Декоратор проверки наличия пользователя в базе данных"""
 
     def wrap(call):
-        async def wrapper(mes: aiogram.types.Message, state: FSMContext = None):
+        async def wrapper(*args):
+            mes: aiogram.types.Message = args[0]
             await state_instance.state_manager.detect_command_call()
             controller = student_con
             chat_id = handler_type(mes)
@@ -86,7 +87,7 @@ def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
             elif result.result.status == 200:
                 log.s(check_user_registered.__name__,
                       f'Пользователь с Telegram ID {mes.from_user.id} присутствует в базе данных (200)')
-                (await call(mes)) if state is None else (await call(mes, state))
+                await call(*args)
             else:
                 log.e(check_user_registered.__name__,
                       f"При получении данных пользователя с Telegram ID {mes.from_user.id} сервер выдал ошибку {result.result.status}")
