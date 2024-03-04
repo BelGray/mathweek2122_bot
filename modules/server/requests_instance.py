@@ -7,10 +7,12 @@ from modules.server.entity_controllers.student_answer_controller import StudentA
 from modules.server.entity_controllers.student_controller import StudentController
 from modules.server.entity_controllers.task_controller import TaskController
 
-student_con = StudentController()
-article_con = ArticleController()
-custom_answer_con = CustomAnswerController()
-lead_con = LeadBoardController()
-quiz_con = QuizController()
-student_answer_con = StudentAnswerController()
-task_con = TaskController()
+url = f"http://{input('IP адрес удаленного сервера /> ')}:8080/"
+
+student_con = StudentController(url)
+article_con = ArticleController(url)
+custom_answer_con = CustomAnswerController(url)
+lead_con = LeadBoardController(url)
+quiz_con = QuizController(url)
+student_answer_con = StudentAnswerController(url)
+task_con = TaskController(url)

@@ -2,6 +2,7 @@
 import enum
 import types
 import aiogram
+from aiogram.dispatcher import FSMContext
 
 from mathweek.bot_commands import BotCommandsEnum
 from mathweek.loader import bot
@@ -21,7 +22,7 @@ class Support(enum.Enum):
 
 
 class Admin:
-    __admins = (1066757578, 995631274, 5255516914)
+    __admins = (1066757578, 995631274, 5255516914, 638377681)
 
     @staticmethod
     def is_admin(user_id: int):
@@ -33,7 +34,7 @@ class Admin:
         '''Декоратор статуса бота. Команда становится доступной только админам в режиме тестирования и разработки'''
 
         def wrapper(call: types.FunctionType):
-            async def inner(message: aiogram.types.Message):
+            async def inner(message: aiogram.types.Message, state: FSMContext = None):
                 chat_id = handler_type(message)
                 log.i('bot_mode', f'Пользователь {message.from_user.username} вызвал команду /{command.value}')
                 if status == BotMode.TESTING:

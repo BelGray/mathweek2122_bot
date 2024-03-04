@@ -9,7 +9,7 @@ import atexit
 import pickle
 
 from mathweek.logger import log
-from modules.date_manager import DateManager
+import modules.date_manager as dm
 
 class StateType(enum.Enum):
     TEMPORARY = 'bot_temp_state.pickle'
@@ -20,14 +20,14 @@ class StateManager:
 
     def __init__(self):
         state = self.read_dump(StateType.TEMPORARY)
-        if state['current_event_day'] == DateManager.day():
+        if state['current_event_day'] == dm.DateManager.day():
             self.__current_event_day: int = state['current_event_day']
             self.__day_answers_count: int = state['day_answers_count']
             self.__day_tasks_assignations_count: int = state['day_tasks_assignation_count']
             self.__day_commands_count: int = state['day_commands_count']
             self.__day_server_requests_count: int = state['day_server_requests_count']
-        elif state['current_event_day'] != DateManager.day():
-            self.__current_event_day: int = DateManager.day()
+        elif state['current_event_day'] != dm.DateManager.day():
+            self.__current_event_day: int = dm.DateManager.day()
             self.__day_answers_count: int = 0
             self.__day_tasks_assignations_count: int = 0
             self.__day_commands_count: int = 0
@@ -82,7 +82,7 @@ class StateManager:
         if not os.path.exists(StateType.TEMPORARY.value):
             with open(StateType.TEMPORARY.value, "wb") as pickle_dump:
                 data = {
-                    "current_event_day": DateManager.day(),
+                    "current_event_day": dm.DateManager.day(),
                     "day_answers_count": 0,
                     "day_tasks_assignation_count": 0,
                     "day_commands_count": 0,
@@ -95,14 +95,14 @@ class StateManager:
 
     def __reset_state(self):
         """Установить начальные данные в текущем временном состоянии и сериализовать их"""
-        self.__current_event_day: int = DateManager.day()
+        self.__current_event_day: int = dm.DateManager.day()
         self.__day_answers_count: int = 0
         self.__day_tasks_assignations_count: int = 0
         self.__day_commands_count: int = 0
         self.__day_server_requests_count: int = 0
         with open(StateType.TEMPORARY.value, "wb") as pickle_dump:
             data = {
-                "current_event_day": DateManager.day(),
+                "current_event_day": dm.DateManager.day(),
                 "day_answers_count": 0,
                 "day_tasks_assignation_count": 0,
                 "day_commands_count": 0,

@@ -1,25 +1,80 @@
 import aiogram.types
+import state_instance
+from aiogram.dispatcher import FSMContext
 from aiogram.types import InputFile
 
 from mathweek.buttons import RegButtonClient, TechSupportButtonClient
-from mathweek.loader import bot, state_manager
+from mathweek.loader import bot
 from modules.content_manager import ContentManager
-from modules.server.data.enums import HandlerType
+from modules.date_manager import DateManager
+from modules.server.data.enums import HandlerType, DayAvailability, TaskStatus
 from modules.server.entity_controllers.student_controller import *
 from mathweek.logger import log
-from modules.server.requests_instance import student_con
+from modules.server.requests_instance import student_con, task_con, student_answer_con
+
+
+async def get_leaderboard_place(leaders: list, telegram_id: int) -> int:
+    """Определить место в таблице лидеров"""
+    for student in leaders:
+        if student['student']['telegramId'] == telegram_id:
+            return leaders.index(student) + 1
+
+
+async def check_calendar_day(day: int) -> DayAvailability:
+    status = DayAvailability.UNAVAILABLE
+    if DateManager.day() < day:
+        status = DayAvailability.UNAVAILABLE
+    elif DateManager.day() == day:
+        status = DayAvailability.AVAILABLE
+    elif DateManager.day() > day:
+        status = DayAvailability.PASSED
+
+    return status
+
+
+def xor(operand_1: bool, operand_2: bool):
+    return bool(operand_1) != bool(operand_2)
+
+
+async def check_task_status(telegram_id: int, day: int, task_id: int) -> tuple[TaskStatus, str]:
+    check_day = await check_calendar_day(day)
+
+    answer = " - "
+    status = TaskStatus.UNTOUCHED
+    is_answered = (await student_answer_con.is_student_answer_to_task(telegram_id, task_id)).json
+    if check_day == DayAvailability.AVAILABLE:
+        if is_answered['isAnswered']:
+            answer = is_answered['object']['studentAnswerText']
+            status = TaskStatus.WAIT
+        else:
+            status = TaskStatus.UNTOUCHED
+    if check_day == DayAvailability.PASSED:
+        if is_answered['isAnswered']:
+            answer = is_answered['object']['studentAnswerText']
+            if is_answered['object']['correct']:
+                status = TaskStatus.SOLVED
+            else:
+                status = TaskStatus.MISSED
+
+    return status, answer
+
+
 
 
 def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
     """Декоратор проверки наличия пользователя в базе данных"""
 
     def wrap(call):
-        async def wrapper(mes: aiogram.types.Message):
-            await state_manager.detect_command_call()
+        async def wrapper(mes: aiogram.types.Message, state: FSMContext = None):
+            await state_instance.state_manager.detect_command_call()
             controller = student_con
             chat_id = handler_type(mes)
-            result: aiohttp.ClientResponse = await controller.get_student(telegram_id=mes.from_user.id)
-            if result.status == 404:
+            result: ServerResponse = await controller.get_student(telegram_id=mes.from_user.id)
+            ban = (await controller.get_student(mes.from_user.id)).json.get('ban', False)
+            if ban:
+                await bot.send_message(chat_id=chat_id,
+                                       text="⛔ Тебя отстранили от использования бота! Обратись в поддержку, если считаешь, что это ошибка")
+            elif result.result.status == 404:
                 log.w(check_user_registered.__name__,
                       f"Пользователя с Telegram ID {mes.from_user.id} нет в базе данных (404)")
                 with open('system_images/auth_required.png', 'rb') as image:
@@ -28,16 +83,16 @@ def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
                                          photo=image,
                                          reply_markup=RegButtonClient
                                          )
-            elif result.status == 200:
+            elif result.result.status == 200:
                 log.s(check_user_registered.__name__,
                       f'Пользователь с Telegram ID {mes.from_user.id} присутствует в базе данных (200)')
-                await call(mes)
+                (await call(mes)) if state is None else (await call(mes, state))
             else:
                 log.e(check_user_registered.__name__,
-                      f"При получении данных пользователя с Telegram ID {mes.from_user.id} сервер выдал ошибку {result.status}")
+                      f"При получении данных пользователя с Telegram ID {mes.from_user.id} сервер выдал ошибку {result.result.status}")
                 await bot.send_photo(chat_id=chat_id,
-                                     caption=f'❌ При попытке найти данные об ученике на сервере, произошла ошибка: HTTP {result.status}.',
-                                     photo=InputFile(ContentManager.make_server_error_image(result.status)),
+                                     caption=f'❌ При попытке найти данные об ученике на сервере, произошла ошибка: HTTP {result.result.status}.',
+                                     photo=InputFile(ContentManager.make_server_error_image(result.result.status)),
                                      reply_markup=TechSupportButtonClient
                                      )
 
@@ -46,16 +101,16 @@ def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
     return wrap
 
 
-async def register_new_student(message: aiogram.types.Message, student: Student) -> aiohttp.ClientResponse:
+async def register_new_student(message: aiogram.types.Message, student: Student) -> ServerResponse:
     """Зарегистрировать нового ученика"""
-    result: aiohttp.ClientResponse = await student_con.create_student(student)
-    if result.status == 201:
+    result: ServerResponse = await student_con.create_student(student)
+    if result.result.status == 201:
         log.s(register_new_student.__name__,
               f"Успешно зарегистрирован новый ученик с Telegram ID {student.telegram_id}")
         await bot.send_message(chat_id=message.chat.id,
                                text=f'🗝️ Ты успешно зарегистрирован(-а) как <b>{student.name} {student.lastname} {student.class_number}{student.class_letter}</b>',
                                parse_mode='HTML')
-    elif result.status == 400:
+    elif result.result.status == 400:
         log.e(register_new_student.__name__,
               f'Ученик {student.name} {student.lastname} {student.class_number}{student.class_letter} уже существует в базе данных.')
         with open('system_images/user_exists.png', 'rb') as image:

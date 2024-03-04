@@ -1,34 +1,52 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import atexit
+import random
 
+import requests
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMedia, InputFile
 
+from modules import tools
+from state_instance import state_manager
 from mathweek.buttons import *
 from mathweek.message_text import *
+from modules.date_manager import DateManager
 from modules.execution_controller import ExecutionController
-from modules.server.data.dataclasses import student_class_letters, Student
-from modules.server.requests_instance import student_con
+from modules.message_design import MessageDrawer
+from modules.server.data.dataclasses import student_class_letters, Student, ServerResponse, student_class_subjects, \
+    subject_symbols, days_difficulty_levels
+from modules.server.data.enums import Subjects, DayAvailability, TaskStatus
+from modules.server.requests_instance import student_con, lead_con, task_con, article_con, quiz_con, student_answer_con
 from mathweek.admin import BotMode, Admin, HandlerType
 from mathweek.bot_commands import set_default_commands, BotCommandsEnum
-from mathweek.loader import dp, state_manager, bot
+from mathweek.loader import dp, bot
 from mathweek.logger import log
 from modules.content_manager import ContentManager
-from modules.tools import check_user_registered, register_new_student
+from modules.tools import check_user_registered, register_new_student, check_task_status, check_calendar_day
 from aiogram import types
 
-from modules.user_dict import UserRegData, User
+from modules.user_dict import UserRegData, User, UserData
 from modules.user_list import UserList
 
-# todo: Написать основные команды. Написать класс с методами основного оформления сообщений бота.
+# todo: написать удобный запуск бота
 
 mode = BotMode.DEVELOPMENT  # <- Режим, в котором сейчас находится бот
 
 reg_users = UserList()
 reg_users_data = UserRegData()
+
+task_id_input = UserData()
+
+user_input = UserData()
+
+class AnswerInput(StatesGroup):
+    answer = State()
+
+class ConfirmDelete(StatesGroup):
+    code = State()
 
 
 class RegName(StatesGroup):
@@ -42,8 +60,315 @@ class RegLastname(StatesGroup):
 async def on_startup(dispatcher):
     log.s('on_startup', 'Успешное подключение к Telegram API')
     await state_manager.state_control_loop()
+    await DateManager.set_event_time_control_loop()
     ContentManager.init_directory('content')
     await set_default_commands(dispatcher)
+
+
+@dp.message_handler(commands=[BotCommandsEnum.PROFILE.value])
+@Admin.bot_mode(mode, BotCommandsEnum.PROFILE)
+@ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
+@check_user_registered(HandlerType.MESSAGE)
+async def profile(message: types.Message):
+    await MessageDrawer(message, HandlerType.MESSAGE).profile(telegram_id=message.from_user.id)
+
+
+@dp.message_handler(commands=[BotCommandsEnum.EVENT_CALENDAR.value])
+@Admin.bot_mode(mode, BotCommandsEnum.PROFILE)
+@ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
+@check_user_registered(HandlerType.MESSAGE)
+async def event_calendar(message: types.Message):
+    await MessageDrawer(message, HandlerType.MESSAGE).event_calendar()
+
+
+@dp.callback_query_handler(text='event_calendar')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def event_calendar_button_callback(callback: types.CallbackQuery):
+    await MessageDrawer(callback.message, HandlerType.MESSAGE).event_calendar()
+
+
+@dp.callback_query_handler(Text(startswith="taskday_"))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def task_day_button_callback(callback: types.CallbackQuery):
+    data = callback.data.split('_')
+    day = int(data[1])
+    day_check = await check_calendar_day(day)
+    student = (await student_con.get_student(callback.from_user.id)).json
+    class_number = student['classNumber']
+    markup = InlineKeyboardMarkup(row_width=3)
+    markup.insert(InlineKeyboardButton(text='️⬅️ Назад', callback_data="go_back_calendar"))
+
+    text = f"<b>{day_check.value} Задания {day} марта.</b>\n<i>{class_number} класс</i>"
+
+    if day_check == DayAvailability.AVAILABLE or day_check == DayAvailability.PASSED:
+
+        for sub in student_class_subjects[class_number]:
+            markup.insert(
+                InlineKeyboardButton(text=f'{sub[1]}',
+                                     callback_data=f"subtaskday_{day}_{sub[0].value}"))
+        await callback.message.edit_text(text=text, reply_markup=markup)
+    elif day_check == DayAvailability.UNAVAILABLE:
+        await bot.send_photo(chat_id=callback.message.chat.id, caption=text,
+                             photo=open("system_images/no_tasks.png", 'rb'), reply_markup=ClearButtonClient)
+
+
+@dp.callback_query_handler(Text(startswith="subtaskday_"))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def sub_task_day_button_callback(callback: types.CallbackQuery):
+    await callback.message.delete()
+    data = callback.data.split('_')
+    day = int(data[1])
+    sub = data[2]
+    day_check = await check_calendar_day(day)
+    student = (await student_con.get_student(callback.from_user.id)).json
+    class_number = student['classNumber']
+    md = MessageDrawer(callback, HandlerType.CALLBACK)
+
+    if sub == Subjects.IT.value:
+        subject = Subjects.IT
+
+        tasks = (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
+                                                                                      days_difficulty_levels[day],
+                                                                                      subject)).json
+        if len(tasks) == 0:
+            await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал на этот день")
+            return
+
+        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
+        article_pattern = await MessageDrawer.make_article(day, tasks[0]['topic'], article[0]['text'])
+        await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern, reply_markup=ShadowButtonClient)
+
+        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
+        await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
+
+        for task in tasks:
+            if not task['quiz']:
+                topic = task['topic']
+                task_type = task['type']
+                level = task['difficultyLevel']
+                task_text = task['text']
+                content = task['content']
+                status, answer = await check_task_status(callback.from_user.id, day, task['id'])
+
+                task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
+
+                markup = InlineKeyboardMarkup(row_width=1)
+                markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
+
+                if day_check == DayAvailability.AVAILABLE:
+                    if status == TaskStatus.UNTOUCHED:
+                        markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
+                    is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
+                    if not is_assigned.json['isAssigned']:
+                        await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
+
+                if content != "" and content is not None:
+                    image = requests.get(str(content).replace(" ", ""))
+                    await bot.send_photo(callback.message.chat.id, InputFile(image.content), caption=task_str,
+                                         reply_markup=markup)
+                else:
+                    await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+
+    if sub == Subjects.PHYS.value:
+        subject = Subjects.PHYS
+
+        tasks = (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
+                                                                                      days_difficulty_levels[day],
+                                                                                      subject)).json
+        if len(tasks) == 0:
+            await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал на этот день")
+            return
+
+        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
+        article_pattern = await MessageDrawer.make_article(day, tasks[0]['topic'], article[0]['text'])
+        await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern, reply_markup=ShadowButtonClient)
+
+        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
+        await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
+
+        for task in tasks:
+            if not task['quiz']:
+                topic = task['topic']
+                task_type = task['type']
+                level = task['difficultyLevel']
+                task_text = task['text']
+                content = task['content']
+                status, answer = await check_task_status(callback.from_user.id, day, task['id'])
+
+                task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
+
+                markup = InlineKeyboardMarkup(row_width=1)
+                markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
+
+                if day_check == DayAvailability.AVAILABLE:
+                    if status == TaskStatus.UNTOUCHED:
+                        markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
+                    is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
+                    if not is_assigned.json['isAssigned']:
+                        await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
+
+                if content != "" and content is not None:
+                    image = requests.get(str(content).replace(" ", ""))
+                    await bot.send_photo(callback.message.chat.id, InputFile(image.content), caption=task_str,
+                                         reply_markup=markup)
+                else:
+                    await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+
+    if sub == Subjects.MATH.value:
+        subject = Subjects.MATH
+
+        tasks = (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
+                                                                                      days_difficulty_levels[day],
+                                                                                      subject)).json
+        if len(tasks) == 0:
+            await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал на этот день")
+            return
+
+        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
+        article_pattern = await MessageDrawer.make_article(day, tasks[0]['topic'], article[0]['text'])
+        await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern, reply_markup=ShadowButtonClient)
+
+        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
+        await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
+
+        for task in tasks:
+            if not task['quiz']:
+                topic = task['topic']
+                task_type = task['type']
+                level = task['difficultyLevel']
+                task_text = task['text']
+                content = task['content']
+                status, answer = await check_task_status(callback.from_user.id, day, task['id'])
+
+                task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
+
+                markup = InlineKeyboardMarkup(row_width=1)
+                markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
+
+                if day_check == DayAvailability.AVAILABLE:
+                    if status == TaskStatus.UNTOUCHED:
+                        markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
+                    is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
+                    if not is_assigned.json['isAssigned']:
+                        await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
+
+                if content != "" and content is not None:
+                    image = requests.get(str(content).replace(" ", ""))
+                    await bot.send_photo(callback.message.chat.id, InputFile(image.content), caption=task_str,
+                                         reply_markup=markup)
+                else:
+                    await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+
+
+@dp.callback_query_handler(Text(startswith="taskanswer_"))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def taskanswer_button_callback(callback: types.CallbackQuery):
+    data = callback.data.split("_")
+    task_id = int(data[1])
+    await task_id_input.set(callback.from_user.id, task_id)
+    task = (await task_con.get_task(task_id)).json
+    day_checker = await check_calendar_day(task['day'])
+    if day_checker == DayAvailability.AVAILABLE:
+        await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ", reply_markup=StopAnswerButtonClient)
+        await AnswerInput.answer.set()
+    else:
+        await bot.send_message(chat_id=callback.message.chat.id, text="⛔ На это задание ответить нельзя")
+
+@dp.callback_query_handler(text='stop_answer', state=AnswerInput.answer)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMContext):
+    await state.reset_state()
+    await task_id_input.remove(callback.from_user.id)
+
+    await bot.send_message(chat_id=callback.message.chat.id, text="⛔ Ввод ответа отменен")
+
+@dp.message_handler(state=AnswerInput.answer)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def process_task_answer(message: types.Message, state: FSMContext):
+    task_id = task_id_input.get(message.from_user.id)
+    await state.finish()
+    answer = message.text.lower()
+    answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
+    if answer_req.result.status == 409:
+        await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
+    elif answer_req.result.status // 100 == 2:
+        await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
+    await task_id_input.remove(message.from_user.id)
+
+
+@dp.callback_query_handler(text='clear')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def clear_button_callback(callback: types.CallbackQuery):
+    await callback.message.delete()
+
+
+@dp.callback_query_handler(text='go_back_calendar')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def go_back_calendar_button_callback(callback: types.CallbackQuery):
+    text = f'📆 <b>Календарь события</b>\n\n<blockquote>📆 <b>Неделя математики 2024</b>: {DateManager.days_text[DateManager.day()]}</blockquote>\n\n<i>Выполняй ежедневно задания и получай баллы за правильные ответы</i>\n\n{points_system_text}\n<blockquote>❗ Ежедневный материал: статья, викторина по статье, два задания на тему статьи</blockquote>\n<blockquote>❗ Задания дня можно решить только в данный день. На ввод ответа дается <u>1 попытка</u></blockquote>'
+    markup = InlineKeyboardMarkup(row_width=3)
+    for day in DateManager.event_days:
+        markup.insert(InlineKeyboardButton(text=f'️{(await tools.check_calendar_day(day)).value} {day} марта',
+                                           callback_data=f"taskday_{day}"))
+    await callback.message.edit_text(text=text, reply_markup=markup)
+
+
+@dp.callback_query_handler(text='delete_account')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def delete_account_button_callback(callback: types.CallbackQuery):
+    confirmation_code = random.randint(100000, 999999)
+    await user_input.set(telegram_id=callback.from_user.id, value=confirmation_code)
+    await bot.send_message(chat_id=callback.message.chat.id,
+                           text=f"⚠️ Внимание! Твой профиль будет удалён. Введи следующий код для подтверждения действия:\n\n<code>{confirmation_code}</code>",
+                           reply_markup=CancelDeleteAccountButtonClient, parse_mode='HTML'
+                           )
+    await ConfirmDelete.code.set()
+
+
+@dp.callback_query_handler(text='cancel_delete_account', state=ConfirmDelete.code)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def cancel_delete_account_button_callback(callback: types.CallbackQuery, state: FSMContext):
+    if user_input.is_involved(callback.from_user.id):
+        await state.reset_state()
+        await user_input.remove(telegram_id=callback.from_user.id)
+        await bot.send_message(chat_id=callback.message.chat.id, text="✖️ Процесс удаления профиля отменён!")
+    await callback.message.delete()
+
+
+@dp.message_handler(state=ConfirmDelete.code)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def process_confirm_delete(message: types.Message, state: FSMContext):
+    if user_input.is_involved(message.from_user.id):
+        code = str(user_input.get(message.from_user.id))
+        input_code = message.text
+        await user_input.remove(telegram_id=message.from_user.id)
+        if input_code == code:
+            await state.finish()
+            result: ServerResponse = await student_con.delete_student(message.from_user.id)
+            if result.result.status // 100 == 2:
+                await bot.send_message(chat_id=message.chat.id, text="🚮 Профиль удалён успешно!")
+            else:
+                await MessageDrawer(message, HandlerType.MESSAGE).server_error(http_status=result.result.status)
+        else:
+            await state.reset_state()
+            await bot.send_message(chat_id=message.chat.id, text="✖️ Процесс удаления профиля отменён!")
+    await message.delete()
 
 
 @dp.message_handler(commands=[BotCommandsEnum.START.value])
@@ -52,6 +377,142 @@ async def on_startup(dispatcher):
 @check_user_registered(HandlerType.MESSAGE)
 async def start(message: types.Message):
     await bot.send_message(chat_id=message.chat.id, text=start_text, reply_markup=StartButtonClient, parse_mode='HTML')
+
+
+@dp.message_handler(commands=[BotCommandsEnum.LEADERS.value])
+@Admin.bot_mode(mode, BotCommandsEnum.START)
+@ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
+@check_user_registered(HandlerType.MESSAGE)
+async def leaders(message: types.Message):
+    await bot.send_message(chat_id=message.chat.id,
+                           text="🔝 <b>Таблицы лидеров</b>\n\n<i>Выбери тип таблицы лидеров</i>",
+                           reply_markup=LeaderboardTypesButtonClient)
+
+
+@dp.callback_query_handler(text='leaders_classes')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def leaders_classes_button_callback(callback: types.CallbackQuery):
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.insert(InlineKeyboardButton(text="📖 Все предметы", callback_data=f"classes_leaderboard_subjects"))
+    student = await student_con.get_student(callback.from_user.id)
+    class_number = student.json['classNumber']
+    for sub in student_class_subjects[class_number]:
+        markup.insert(InlineKeyboardButton(text=sub[1], callback_data=f"classes_leaderboard_{sub[0].value}"))
+    await callback.message.edit_text(text="🔝 <b>Таблицы лидеров параллели классов</b>\n\n<i>Выбери таблицу лидеров</i>",
+                                     reply_markup=markup)
+
+
+@dp.callback_query_handler(text='leaders_letter')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def leaders_letter_button_callback(callback: types.CallbackQuery):
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.insert(InlineKeyboardButton(text="📖 Все предметы", callback_data=f"letter_leaderboard_subjects"))
+    student = await student_con.get_student(callback.from_user.id)
+    class_number = student.json['classNumber']
+    for sub in student_class_subjects[class_number]:
+        markup.insert(InlineKeyboardButton(text=sub[1], callback_data=f"letter_leaderboard_{sub[0].value}"))
+    await callback.message.edit_text(text="🔝 <b>Таблицы лидеров класса</b>\n\n<i>Выбери таблицу лидеров</i>",
+                                     reply_markup=markup)
+
+
+@dp.callback_query_handler(Text(contains="_leaderboard_"))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def leaderboard_button_callback(callback: types.CallbackQuery):
+    data = callback.data.split("_")
+    leaders_list = []
+    leaders_str = "<blockquote>Пустая таблица :(</blockquote>"
+    table_label = ""
+    students_count = 25
+
+    student = await student_con.get_student(callback.from_user.id)
+    if data[0] == "letter":
+        class_number = student.json['classNumber']
+        class_letter = student.json['classLetter']
+        if data[2] == Subjects.MATH.value:
+            leaders_list = (
+                await lead_con.get_leaderboard_by_subject_and_class_number_and_class_letter(Subjects.MATH, class_number,
+                                                                                            class_letter)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>{subject_symbols['math']} Математика {class_number}{class_letter} класс. ТОП <code>{students_count}</code> по баллам</b>\n"
+
+        elif data[2] == Subjects.IT.value:
+            leaders_list = (
+                await lead_con.get_leaderboard_by_subject_and_class_number_and_class_letter(Subjects.IT, class_number,
+                                                                                            class_letter)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>{subject_symbols['it']} Информатика {class_number}{class_letter} класс. ТОП <code>{students_count}</code> по баллам</b>\n"
+
+        elif data[2] == Subjects.PHYS.value:
+            leaders_list = (
+                await lead_con.get_leaderboard_by_subject_and_class_number_and_class_letter(Subjects.PHYS, class_number,
+                                                                                            class_letter)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>{subject_symbols['phys']} Физика {class_number}{class_letter} класс. ТОП <code>{students_count}</code> по баллам</b>\n"
+
+        elif data[2] == "subjects":
+            leaders_list = (
+                await lead_con.get_leaderboard_by_class_number_and_class_letter(class_number, class_letter)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>📖 Все предметы {class_number}{class_letter} класс. ТОП <code>{students_count}</code> по общим баллам</b>\n"
+
+    elif data[0] == "classes":
+        class_number = student.json['classNumber']
+        if data[2] == Subjects.MATH.value:
+            leaders_list = (
+                await lead_con.get_leaderboard_by_subject_and_class_number(Subjects.MATH, class_number)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>{subject_symbols['math']} Математика {class_number} классы. ТОП <code>{students_count}</code> по баллам</b>\n"
+
+        elif data[2] == Subjects.IT.value:
+            leaders_list = (
+                await lead_con.get_leaderboard_by_subject_and_class_number(Subjects.IT, class_number)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>{subject_symbols['it']} Информатика {class_number} классы. ТОП <code>{students_count}</code> по баллам</b>\n"
+
+        elif data[2] == Subjects.PHYS.value:
+            leaders_list = (
+                await lead_con.get_leaderboard_by_subject_and_class_number(Subjects.PHYS, class_number)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>{subject_symbols['phys']} Физика {class_number} классы. ТОП <code>{students_count}</code> по баллам</b>\n"
+
+        elif data[2] == "subjects":
+            leaders_list = (
+                await lead_con.get_leaderboard_by_class_number(class_number)).json
+            leaders_done_str = await MessageDrawer.make_leaderboard(leaders_list, students_count)
+            if leaders_done_str != "":
+                leaders_str = leaders_done_str
+            table_label = f"<b>📖 Все предметы {class_number} классы. ТОП <code>{students_count}</code> по общим баллам</b>\n"
+
+    await callback.message.edit_text(text=f"{table_label}\n{leaders_str}", reply_markup=LeadersGoBackButtonClient)
+
+
+@dp.callback_query_handler(text='go_back_leaders')
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def go_back_leaders_button_callback(callback: types.CallbackQuery):
+    await callback.message.edit_text(text="🔝 <b>Таблицы лидеров</b>\n\n<i>Выбери тип таблицы лидеров</i>",
+                                     reply_markup=LeaderboardTypesButtonClient)
 
 
 @dp.callback_query_handler(text='bot_about')
@@ -76,8 +537,8 @@ async def bot_about_button_callback(callback: types.CallbackQuery):
 async def reg_button_callback(message: types.Message):
     if reg_users.is_involved(message.from_user.id):
         return
-    student = await student_con.get_student(message.from_user.id)
-    if student.status == 200:
+    student: ServerResponse = await student_con.get_student(message.from_user.id)
+    if student.result.status == 200:
         with open('system_images/user_exists.png', 'rb') as image:
             await bot.send_photo(chat_id=message['message']['chat']['id'], caption="✅ Ты уже и так зарегистрирован(-а)",
                                  photo=image)
@@ -96,7 +557,7 @@ async def reg_button_callback(message: types.Message):
 async def process_reg_name(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.finish()
-        name = message.text.replace(' ', '').capitalize()
+        name = message.text.replace(' ', '').capitalize()[:20]
         user: User = reg_users_data.get(message.from_user.id)
         user.name = name
         await bot.send_message(chat_id=message['chat']['id'],
@@ -110,7 +571,7 @@ async def process_reg_name(message: types.Message, state: FSMContext):
 async def process_reg_lastname(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.finish()
-        lastname = message.text.replace(' ', '').capitalize()
+        lastname = message.text.replace(' ', '').capitalize()[:25]
         user: User = reg_users_data.get(message.from_user.id)
         user.lastname = lastname
         markup = InlineKeyboardMarkup(row_width=6)
@@ -125,7 +586,8 @@ async def process_reg_lastname(message: types.Message, state: FSMContext):
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def class_letter_choice_button_callback(callback: types.CallbackQuery):
     user: User = reg_users_data.get(callback.from_user.id)
-    if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(callback.from_user.id) and user.class_letter is None:
+    if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(
+            callback.from_user.id) and user.class_letter is None:
         student_letter = callback.data.split('_')[1]
         user.class_letter = student_letter
         await register_new_student(callback.message, Student(
@@ -140,12 +602,14 @@ async def class_letter_choice_button_callback(callback: types.CallbackQuery):
         return
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 
+
 @dp.callback_query_handler(Text(startswith='class_'))
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def class_number_choice_button_callback(callback: types.CallbackQuery):
     user: User = reg_users_data.get(callback.from_user.id)
-    if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(callback.from_user.id) and user.class_number is None:
+    if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(
+            callback.from_user.id) and user.class_number is None:
         student_class = callback.data.split('_')[1]
         user.class_number = int(student_class)
         await bot.send_message(chat_id=callback.message.chat.id, text="🤔 Ты точно выбрал свой настоящий класс?",
@@ -153,16 +617,19 @@ async def class_number_choice_button_callback(callback: types.CallbackQuery):
         return
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 
+
 @dp.callback_query_handler(text='confirm_class')
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def confirm_class_button_callback(message: types.Message):
     user: User = reg_users_data.get(message.from_user.id)
-    if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id) and user.class_number is not None:
+    if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(
+            message.from_user.id) and user.class_number is not None:
         markup = InlineKeyboardMarkup(row_width=6)
         for letter in student_class_letters[user.class_number]:
             markup.insert(InlineKeyboardButton(text=f'{letter}', callback_data=f"letter_{letter}"))
-        await bot.send_message(chat_id=message['message']['chat']['id'], text=f"📚 <b>{user.class_number} класс</b>\n\n🅰️ Выбери букву класса:  ",
+        await bot.send_message(chat_id=message['message']['chat']['id'],
+                               text=f"📚 <b>{user.class_number} класс</b>\n\n🅰️ Выбери букву класса:  ",
                                reply_markup=markup, parse_mode='HTML')
         return
     await bot.delete_message(chat_id=message['message']['chat']['id'], message_id=message['message']['message_id'])

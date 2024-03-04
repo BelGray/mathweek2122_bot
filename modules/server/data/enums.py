@@ -1,9 +1,11 @@
 import enum
 import aiohttp
 
+
 class HandlerType(enum.Enum):
     MESSAGE = lambda message: message['chat']['id']
     CALLBACK = lambda message: message['message']['chat']['id']
+
 
 class DifficultyLevels(enum.Enum):
     EASY = 1
@@ -17,6 +19,19 @@ class DifficultyLevels(enum.Enum):
 class TaskTypes(enum.Enum):
     EXPRESSION = "EXPRESSION"
     WORD_TASK = "WORD_TASK"
+
+
+class DayAvailability(enum.Enum):
+    UNAVAILABLE = "🔒"
+    AVAILABLE = "🔑"
+    PASSED = "☑️"
+
+
+class TaskStatus(enum.Enum):
+    SOLVED = "✅"
+    MISSED = "❌"
+    UNTOUCHED = "🆕"
+    WAIT = "⏳"
 
 
 class Subjects(enum.Enum):

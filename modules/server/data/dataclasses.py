@@ -1,3 +1,7 @@
+from typing import Coroutine
+
+import aiohttp
+
 import dataclasses
 
 from modules.server.data.enums import TaskTypes, Subjects
@@ -12,6 +16,57 @@ student_class_letters = {
     10: ("А", "К"),
     11: ("К",)
 }
+
+subject_symbols = {
+    'math': '🔢',
+    'phys': '⚛️',
+    'it': '🌐'
+}
+
+days_difficulty_levels = {
+    4: 1,
+    5: 1,
+    6: 2,
+    7: 2,
+    11: 3,
+    12: 3,
+    13: 4
+}
+
+student_class_subjects = {
+    5: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика")),
+    6: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика")),
+    7: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика"), (Subjects.PHYS, f"{subject_symbols['phys']} Физика")),
+    8: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика"), (Subjects.PHYS, f"{subject_symbols['phys']} Физика")),
+    9: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика"), (Subjects.PHYS, f"{subject_symbols['phys']} Физика")),
+    10: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика"), (Subjects.PHYS, f"{subject_symbols['phys']} Физика")),
+    11: ((Subjects.MATH, f"{subject_symbols['math']} Математика"), (Subjects.IT, f"{subject_symbols['it']} Информатика"), (Subjects.PHYS, f"{subject_symbols['phys']} Физика")),
+}
+
+tasks_levels = {
+    1: {
+        'label': 'Базовый уровень',
+        'points': 1
+    },
+    2: {
+        'label': 'Средний уровень',
+        'points': 2
+    },
+    3: {
+        'label': 'Сложный уровень',
+        'points': 3
+    },
+    4: {
+        'label': 'Углубленный уровень',
+        'points': 7
+    }
+}
+
+@dataclasses.dataclass
+class ServerResponse:
+    result: aiohttp.ClientResponse
+    json: dict
+    text: str
 
 @dataclasses.dataclass
 class TaskAnswer:
