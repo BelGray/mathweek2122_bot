@@ -295,9 +295,7 @@ async def stop_answer_button_callback(message: types.Message, state: FSMContext)
     await bot.send_message(chat_id=message['message']['chat']['id'], text="⛔ Ввод ответа отменен")
 
 
-@dp.message_handler(state=AnswerInput.answer)
-@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@dp.message_handler(state=AnswerInput.answer, content_types=types.ContentTypes.TEXT)
 async def process_task_answer(message: types.Message, state: FSMContext):
     task_id = task_id_input.get(message.from_user.id)
     await state.finish()
@@ -353,9 +351,7 @@ async def cancel_delete_account_button_callback(callback: types.CallbackQuery, s
     await callback.message.delete()
 
 
-@dp.message_handler(state=ConfirmDelete.code)
-@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@dp.message_handler(state=ConfirmDelete.code, content_types=types.ContentTypes.TEXT)
 async def process_confirm_delete(message: types.Message, state: FSMContext):
     if user_input.is_involved(message.from_user.id):
         code = str(user_input.get(message.from_user.id))
@@ -555,8 +551,7 @@ async def reg_button_callback(message: types.Message):
     await RegName.name.set()
 
 
-@dp.message_handler(state=RegName.name)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@dp.message_handler(state=RegName.name, content_types=types.ContentTypes.TEXT)
 async def process_reg_name(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.finish()
@@ -569,8 +564,7 @@ async def process_reg_name(message: types.Message, state: FSMContext):
         await RegLastname.lastname.set()
 
 
-@dp.message_handler(state=RegLastname.lastname)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@dp.message_handler(state=RegLastname.lastname, content_types=types.ContentTypes.TEXT)
 async def process_reg_lastname(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.finish()
