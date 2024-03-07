@@ -15,6 +15,7 @@ class UserRegData(dict):
     async def set(self, telegram_id: int, user: User = User(None, None, None, None)):
         """Добавить id, если его нет в словаре"""
         if not self.is_involved(telegram_id):
+            user = User(None, None, None, None)
             self[telegram_id] = user
 
     def is_involved(self, telegram_id: int) -> bool:
@@ -24,7 +25,7 @@ class UserRegData(dict):
     async def remove(self, telegram_id: int):
         """Удалить из словаря id, если существует"""
         if self.is_involved(telegram_id):
-            del self[telegram_id]
+            self.pop(telegram_id)
 
 
 class UserData(dict):

@@ -286,20 +286,22 @@ async def taskanswer_button_callback(callback: types.CallbackQuery):
 
 
 @dp.callback_query_handler(text='stop_answer', state=AnswerInput.answer)
-@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-async def stop_answer_button_callback(message: types.Message, state: FSMContext):
-    await state.reset_state()
-    await task_id_input.remove(message.from_user.id)
+async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMContext):
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
+    if task_id_input.is_involved(callback.from_user.id):
+        await state.reset_state()
+        await task_id_input.remove(callback.from_user.id)
 
-    await bot.send_message(chat_id=message['message']['chat']['id'], text="⛔ Ввод ответа отменен")
+        alert = await bot.send_message(chat_id=callback.message.chat.id, text="⛔ Ввод ответа отменен")
+        await asyncio.sleep(5)
+        await alert.delete()
 
 
 @dp.message_handler(state=AnswerInput.answer, content_types=types.ContentTypes.TEXT)
 async def process_task_answer(message: types.Message, state: FSMContext):
     task_id = task_id_input.get(message.from_user.id)
-    await state.finish()
-    answer = message.text.lower()
+    await state.reset_state()
+    answer = message.text.lower().replace(',', '.')
     answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
     if answer_req.result.status == 409:
         await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
@@ -358,7 +360,7 @@ async def process_confirm_delete(message: types.Message, state: FSMContext):
         input_code = message.text
         await user_input.remove(telegram_id=message.from_user.id)
         if input_code == code:
-            await state.finish()
+            await state.reset_state()
             result: ServerResponse = await student_con.delete_student(message.from_user.id)
             if result.result.status // 100 == 2:
                 await bot.send_message(chat_id=message.chat.id, text="🚮 Профиль удалён успешно!")
@@ -534,7 +536,7 @@ async def bot_about_button_callback(callback: types.CallbackQuery):
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def reg_button_callback(message: types.Message):
-    if reg_users.is_involved(message.from_user.id):
+    if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         return
     student: ServerResponse = await student_con.get_student(message.from_user.id)
     if student.result.status == 200:
@@ -542,9 +544,10 @@ async def reg_button_callback(message: types.Message):
             await bot.send_photo(chat_id=message['message']['chat']['id'], caption="✅ Ты уже и так зарегистрирован(-а)",
                                  photo=image)
         return
-
+    log.d(reg_button_callback.__name__, str((reg_users, reg_users_data)))
     await reg_users_data.set(message.from_user.id)
     await reg_users.add(message.from_user.id)
+    log.d(reg_button_callback.__name__, str((reg_users, reg_users_data)))
     await bot.send_message(chat_id=message['message']['chat']['id'],
                            text="👤 Введи свое настоящее имя:\n\n⚠️ Убедись в правильности написания имени. Указанное имя уже нельзя будет изменить самостоятельно!",
                            reply_markup=StopRegNameButtonClient)
@@ -554,7 +557,7 @@ async def reg_button_callback(message: types.Message):
 @dp.message_handler(state=RegName.name, content_types=types.ContentTypes.TEXT)
 async def process_reg_name(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
-        await state.finish()
+        await state.reset_state()
         name = message.text.replace(' ', '').capitalize()[:20]
         user: User = reg_users_data.get(message.from_user.id)
         user.name = name
@@ -567,7 +570,7 @@ async def process_reg_name(message: types.Message, state: FSMContext):
 @dp.message_handler(state=RegLastname.lastname, content_types=types.ContentTypes.TEXT)
 async def process_reg_lastname(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
-        await state.finish()
+        await state.reset_state()
         lastname = message.text.replace(' ', '').capitalize()[:25]
         user: User = reg_users_data.get(message.from_user.id)
         user.lastname = lastname
@@ -604,14 +607,15 @@ async def class_letter_choice_button_callback(callback: types.CallbackQuery):
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def class_number_choice_button_callback(callback: types.CallbackQuery):
-    user: User = reg_users_data.get(callback.from_user.id)
     if reg_users.is_involved(callback.from_user.id) and reg_users_data.is_involved(
-            callback.from_user.id) and user.class_number is None:
-        student_class = callback.data.split('_')[1]
-        user.class_number = int(student_class)
-        await bot.send_message(chat_id=callback.message.chat.id, text="🤔 Ты точно выбрал свой настоящий класс?",
+            callback.from_user.id):
+        user: User = reg_users_data.get(callback.from_user.id)
+        if user.class_number is None:
+            student_class = callback.data.split('_')[1]
+            user.class_number = int(student_class)
+            await bot.send_message(chat_id=callback.message.chat.id, text="🤔 Ты точно выбрал свой настоящий класс?",
                                reply_markup=ConfirmClassNumberButtonClient)
-        return
+            return
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 
 
@@ -633,8 +637,6 @@ async def confirm_class_button_callback(message: types.Message):
 
 
 @dp.callback_query_handler(text='stop_class_reg')
-@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def stop_class_reg_button_callback(message: types.Message):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await reg_users_data.remove(message.from_user.id)
@@ -649,8 +651,6 @@ async def stop_class_reg_button_callback(message: types.Message):
 
 
 @dp.callback_query_handler(text='stop_reg_name', state=RegName.name)
-@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def stop_reg_name_button_callback(message: types.Message, state: FSMContext):
     await state.reset_state()
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
@@ -666,8 +666,6 @@ async def stop_reg_name_button_callback(message: types.Message, state: FSMContex
 
 
 @dp.callback_query_handler(text='stop_reg_lastname', state=RegLastname.lastname)
-@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
-@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def stop_reg_lastname_button_callback(message: types.Message, state: FSMContext):
     await state.reset_state()
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
