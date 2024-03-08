@@ -33,7 +33,7 @@ class Admin:
                 message: aiogram.types.Message = args[0]
                 chat_id = handler_type(message)
                 log.i('bot_mode', f'Пользователь {message.from_user.username} вызвал команду /{command.value}')
-                if status == BotMode.TESTING:
+                if status == bot_config.BotMode.TESTING:
                     if Admin.is_admin(message.from_user.id):
                         await call(*args)
                     else:
@@ -41,7 +41,7 @@ class Admin:
                             await bot.send_photo(chat_id=chat_id,
                                                  caption='🔧 Ведутся технические работы. Функционал бота временно недоступен.',
                                                  photo=image)
-                elif status == BotMode.DEVELOPMENT:
+                elif status == bot_config.BotMode.DEVELOPMENT:
                     if Admin.is_admin(message.from_user.id):
                         await call(*args)
                     else:
@@ -50,7 +50,7 @@ class Admin:
                                                  caption='💻 Ведется разработка функционала. Бот временно недоступен.',
                                                  photo=image)
 
-                elif status == BotMode.PRODUCTION:
+                elif status == bot_config.BotMode.PRODUCTION:
                     await call(*args)
 
             return inner
