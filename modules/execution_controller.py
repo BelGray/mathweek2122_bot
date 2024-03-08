@@ -2,7 +2,7 @@ import warnings
 import aiogram.types
 from aiogram.dispatcher import FSMContext
 
-from mathweek.admin import BotMode
+from modules.bot_config import BotMode
 from mathweek.logger import log
 from modules.message_design import MessageDrawer
 from modules.server.data.enums import HandlerType

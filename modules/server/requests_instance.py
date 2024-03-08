@@ -1,4 +1,5 @@
 # Контроллеры http запросов
+import configuration_instance
 from modules.server.entity_controllers.article_controller import ArticleController
 from modules.server.entity_controllers.custom_answer_controller import CustomAnswerController
 from modules.server.entity_controllers.lead_controller import LeadBoardController
@@ -7,7 +8,7 @@ from modules.server.entity_controllers.student_answer_controller import StudentA
 from modules.server.entity_controllers.student_controller import StudentController
 from modules.server.entity_controllers.task_controller import TaskController
 
-url = f"http://{input('IP адрес удаленного сервера /> ')}:8080/"
+url = f"http://{configuration_instance.server_domain}:8080/"
 
 student_con = StudentController(url)
 article_con = ArticleController(url)

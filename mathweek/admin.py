@@ -7,13 +7,8 @@ from aiogram.dispatcher import FSMContext
 from mathweek.bot_commands import BotCommandsEnum
 from mathweek.loader import bot
 from mathweek.logger import log
+from modules import bot_config
 from modules.server.data.enums import HandlerType
-
-
-class BotMode(enum.Enum):
-    PRODUCTION = 0
-    DEVELOPMENT = 1
-    TESTING = 2
 
 
 class Support(enum.Enum):
@@ -30,7 +25,7 @@ class Admin:
         return True if user_id in Admin.__admins else False
 
     @staticmethod
-    def bot_mode(status: BotMode, command: BotCommandsEnum, handler_type: HandlerType = HandlerType.MESSAGE):
+    def bot_mode(status: bot_config.BotMode, command: BotCommandsEnum, handler_type: HandlerType = HandlerType.MESSAGE):
         '''Декоратор статуса бота. Команда становится доступной только админам в режиме тестирования и разработки'''
 
         def wrapper(call: types.FunctionType):

@@ -2,13 +2,12 @@
 import asyncio
 import atexit
 import random
-
+import configuration_instance
 import requests
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMedia, InputFile
-
 from modules import tools
 from state_instance import state_manager
 from mathweek.buttons import *
@@ -20,7 +19,7 @@ from modules.server.data.dataclasses import student_class_letters, Student, Serv
     subject_symbols, days_difficulty_levels
 from modules.server.data.enums import Subjects, DayAvailability, TaskStatus
 from modules.server.requests_instance import student_con, lead_con, task_con, article_con, quiz_con, student_answer_con
-from mathweek.admin import BotMode, Admin, HandlerType
+from mathweek.admin import Admin, HandlerType
 from mathweek.bot_commands import set_default_commands, BotCommandsEnum
 from mathweek.loader import dp, bot
 from mathweek.logger import log
@@ -31,9 +30,7 @@ from aiogram import types
 from modules.user_dict import UserRegData, User, UserData
 from modules.user_list import UserList
 
-# todo: написать удобный запуск бота, изменить даты и провести полный дебаг (особенно апишки)
-
-mode = BotMode.DEVELOPMENT  # <- Режим, в котором сейчас находится бот
+mode = configuration_instance.bot_mode
 
 reg_users = UserList()
 reg_users_data = UserRegData()
