@@ -15,6 +15,7 @@ from modules.server.requests_instance import student_con, task_con, student_answ
 
 async def get_leaderboard_place(leaders: list, telegram_id: int) -> int:
     """Определить место в таблице лидеров"""
+    leaders = sorted(leaders, key=lambda user: user['points'], reverse=True)
     for student in leaders:
         if student['student']['telegramId'] == telegram_id:
             return leaders.index(student) + 1
