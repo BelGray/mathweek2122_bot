@@ -62,4 +62,3 @@ class DateManager:
         """Цикл ежедневной выдачи заданий ученикам"""
         thread = Thread(target=DateManager._schedule_init, args=(), daemon=True)  # <- Отдельный поток для работы графиков
         thread.start()
-        # todo: Дописать цикл-контролер времени. (получение заданий каждый день)

@@ -17,7 +17,6 @@ from modules.server.requests_instance import student_con, student_answer_con, le
 from modules.tools import get_leaderboard_place
 
 
-# todo: Написать дизайн сообщений с заданиями и календаря события в целом
 
 class MessageDrawer:
     """Класс с методами отправки различных сообщений для конкретных целей. Не выводит ошибки в режиме разработки, тестирования"""
@@ -100,7 +99,7 @@ class MessageDrawer:
 
     @classmethod
     async def make_leaderboard(cls, leaders_list: list, students_count: int) -> str:
-        leaders_list = sorted(leaders_list, key=lambda user: leaders_list[user]['points'], reverse=True)
+        # leaders_list = sorted(leaders_list, key=lambda user: leaders_list[user]['points'], reverse=True)
         leaders_str = ""
         for i in range(students_count if len(leaders_list) >= students_count else len(leaders_list)):
             student = leaders_list[i]
