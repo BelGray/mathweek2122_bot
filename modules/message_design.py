@@ -89,12 +89,14 @@ class MessageDrawer:
         elif status == TaskStatus.WAIT:
             status_str = 'Ответ дан. Результаты будут уже завтра.'
 
-        text = (
+        text = text.replace('#n', "\n")
+
+        task_text = (
             f'📌 <b>Задание на тему "{topic}"</b>\n<i>{"Текстовая задача" if task_type == TaskTypes.WORD_TASK.value else "Выражение"}.'
             f' {tasks_levels[level]["label"]}</i>\n\n<blockquote>{text}</blockquote>\n\n🎯 <b>Вес задания: {tasks_levels[level]["points"]}</b>'
             f'\n\n{status.value} <b>{status_str}</b>\n💬 <b>Ответ: {answer if answer is not None else " - "}</b>')
 
-        return text
+        return task_text
 
     @classmethod
     async def make_leaderboard(cls, leaders_list: list, students_count: int) -> str:
