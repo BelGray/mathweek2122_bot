@@ -17,7 +17,7 @@ points_system_text = ("ℹ️ <b>Основная информация</b>\n\n�
 
 bot_about_text = ('💻 <b>О проекте</b>\n\n✦ <i><a href="https://github.com/BelGray/mathweek2122_bot">Репозиторий GitHub</a></i>\n\n'
                   '<u>Участники проекта:</u>\n\n<i>Разработчики:</i>\n▹ @bel_gray\n▹ @george_fil'
-                  '\n\n<i>Составители заданий:</i>\n ▹ @george_fil\n ▹ @timur_furious\n ▹ @mariasmol007\n ▹ @enoshkaI'
+                  '\n\n<i>Составители заданий:</i>\n ▹ @george_fil\n ▹ @timur_furious\n ▹ @mariasmol007\n ▹ @enoshkaI\n▹ @bel_gray'
                   '\n\n<i>Составители викторин:</i>\n ▹ @george_fil\n ▹ @vashtimoshka'
                   '\n\n<i>Составители статей:</i>\n ▹ @george_fil\n ▹ @vashtimoshka'
                   '\n\n<i>Реализация идеи проекта:</i>\n ▹ @bel_gray'

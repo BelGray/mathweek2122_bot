@@ -89,7 +89,7 @@ class MessageDrawer:
         elif status == TaskStatus.WAIT:
             status_str = 'Ответ дан. Результаты будут уже завтра.'
 
-        text = text.replace('#n', "\n")
+        text = text.replace('#n', "\n").replace('^2', '²').replace('^3', '³')
 
         task_text = (
             f'📌 <b>Задание на тему "{topic}"</b>\n<i>{"Текстовая задача" if task_type == TaskTypes.WORD_TASK.value else "Выражение"}.'
