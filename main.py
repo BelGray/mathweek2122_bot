@@ -5,7 +5,6 @@ import datetime
 import random
 
 import aiogram.utils.exceptions
-
 import configuration_instance
 import requests
 from aiogram.dispatcher import FSMContext

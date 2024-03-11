@@ -1,6 +1,6 @@
 import aiogram.types
 from aiogram.types import InputFile
-
+import aiogram.utils.markdown as fmt
 import state_instance
 from mathweek.bot_commands import BotCommandsEnum
 from mathweek.buttons import RegButtonClient, TechSupportButtonClient
@@ -117,24 +117,24 @@ async def register_new_student(message: aiogram.types.Message, student: Student)
         log.s(register_new_student.__name__,
               f"Успешно зарегистрирован новый ученик с Telegram ID {student.telegram_id}")
         await bot.send_message(chat_id=message.chat.id,
-                               text=f'🗝️ Ты успешно зарегистрирован(-а) как <b>{student.name} {student.lastname} {student.class_number}{student.class_letter}</b>',
+                               text=f'🗝️ Ты успешно зарегистрирован(-а) как <b>{fmt.quote_html(student.name)} {fmt.quote_html(student.lastname)} {student.class_number}{student.class_letter}</b>',
                                parse_mode='HTML')
     elif result.result.status == 400:
         log.e(register_new_student.__name__,
-              f'Ученик {student.name} {student.lastname} {student.class_number}{student.class_letter} уже существует в базе данных.')
+              f'Ученик {fmt.quote_html(student.name)} {fmt.quote_html(student.lastname)} {student.class_number}{student.class_letter} уже существует в базе данных.')
         with open('system_images/user_exists.png', 'rb') as image:
             await bot.send_photo(chat_id=message.chat.id,
-                                 caption=f'❌ Ученик <b>{student.name} {student.lastname} {student.class_number}{student.class_letter} уже является пользователем данного бота.</b>',
+                                 caption=f'❌ Ученик <b>{fmt.quote_html(student.name)} {fmt.quote_html(student.lastname)} {student.class_number}{student.class_letter} уже является пользователем данного бота.</b>',
                                  photo=image,
                                  parse_mode='HTML',
                                  reply_markup=TechSupportButtonClient
                                  )
     else:
         log.e(register_new_student.__name__,
-              f"Что-то пошло не так при регистрации пользователя с Telegram ID {student.telegram_id}. HTTP статус: {result.status}")
+              f"Что-то пошло не так при регистрации пользователя с Telegram ID {student.telegram_id}. HTTP статус: {result.result.status}")
         await bot.send_photo(chat_id=message.chat.id,
-                             caption=f'❌ Что-то пошло не так при регистрации нового ученика. HTTP {result.status}',
-                             photo=InputFile(ContentManager.make_server_error_image(result.status)),
+                             caption=f'❌ Что-то пошло не так при регистрации нового ученика. HTTP {result.result.status}',
+                             photo=InputFile(ContentManager.make_server_error_image(result.result.status)),
                              reply_markup=TechSupportButtonClient
                              )
 
