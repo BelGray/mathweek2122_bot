@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import atexit
+import datetime
 import random
+
+import aiogram.utils.exceptions
+
 import configuration_instance
 import requests
 from aiogram.dispatcher import FSMContext
@@ -16,15 +20,16 @@ from modules.date_manager import DateManager
 from modules.execution_controller import ExecutionController
 from modules.message_design import MessageDrawer
 from modules.server.data.dataclasses import student_class_letters, Student, ServerResponse, student_class_subjects, \
-    subject_symbols, days_difficulty_levels
+    subject_symbols, days_difficulty_levels, tasks_levels
 from modules.server.data.enums import Subjects, DayAvailability, TaskStatus
 from modules.server.requests_instance import student_con, lead_con, task_con, article_con, quiz_con, student_answer_con
 from mathweek.admin import Admin, HandlerType
-from mathweek.bot_commands import set_default_commands, BotCommandsEnum
+from mathweek.bot_commands import set_default_commands, BotCommandsEnum, str_commands_list
 from mathweek.loader import dp, bot
 from mathweek.logger import log
 from modules.content_manager import ContentManager
-from modules.tools import check_user_registered, register_new_student, check_task_status, check_calendar_day
+from modules.tools import check_user_registered, register_new_student, check_task_status, check_calendar_day, \
+    commands_detector
 from aiogram import types
 
 from modules.user_dict import UserRegData, User, UserData
@@ -68,14 +73,16 @@ async def on_startup(dispatcher):
 @Admin.bot_mode(mode, BotCommandsEnum.PROFILE)
 @ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
 @check_user_registered(HandlerType.MESSAGE)
+@commands_detector(BotCommandsEnum.PROFILE)
 async def profile(message: types.Message):
     await MessageDrawer(message, HandlerType.MESSAGE).profile(telegram_id=message.from_user.id)
 
 
 @dp.message_handler(commands=[BotCommandsEnum.EVENT_CALENDAR.value])
-@Admin.bot_mode(mode, BotCommandsEnum.PROFILE)
+@Admin.bot_mode(mode, BotCommandsEnum.EVENT_CALENDAR)
 @ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
 @check_user_registered(HandlerType.MESSAGE)
+@commands_detector(BotCommandsEnum.EVENT_CALENDAR)
 async def event_calendar(message: types.Message):
     await MessageDrawer(message, HandlerType.MESSAGE).event_calendar()
 
@@ -101,7 +108,7 @@ async def task_day_button_callback(callback: types.CallbackQuery):
     markup = InlineKeyboardMarkup(row_width=3)
     markup.insert(InlineKeyboardButton(text='️⬅️ Назад', callback_data="go_back_calendar"))
 
-    text = f"<b>{day_check.value} Задания {day} марта.</b>\n<i>{class_number} класс</i>"
+    text = f"<b>{day_check.value} Задания {day} марта. {tasks_levels[days_difficulty_levels[day]]['label']}</b>\n<i>{class_number} класс</i>"
 
     if day_check == DayAvailability.AVAILABLE or day_check == DayAvailability.PASSED:
 
@@ -132,140 +139,152 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
     if sub == Subjects.IT.value:
         subject = Subjects.IT
 
-        tasks = (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
-                                                                                      days_difficulty_levels[day],
-                                                                                      subject)).json
-        if len(tasks) == 0:
+        tasks = list(filter(lambda current_task: current_task['quiz'] is False,
+                            (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
+                                                                                                  days_difficulty_levels[
+                                                                                                      day],
+                                                                                                  subject)).json))
+        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
+        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
+        if len(tasks) == 0 or len(article) == 0 or len(quiz) == 0:
             await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал на этот день")
             return
 
-        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
         article_pattern = await MessageDrawer.make_article(day, tasks[0]['topic'], article[0]['text'])
         await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern, reply_markup=ShadowButtonClient)
 
-        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
         await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
 
         for task in tasks:
-            if not task['quiz']:
-                topic = task['topic']
-                task_type = task['type']
-                level = task['difficultyLevel']
-                task_text = task['text']
-                content = task['content']
-                status, answer = await check_task_status(callback.from_user.id, day, task['id'])
+            topic = task['topic']
+            task_type = task['type']
+            level = task['difficultyLevel']
+            task_text = task['text']
+            content = task['content']
+            status, answer = await check_task_status(callback.from_user.id, day, task['id'])
 
-                task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
+            task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
 
-                markup = InlineKeyboardMarkup(row_width=1)
-                markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
+            markup = InlineKeyboardMarkup(row_width=1)
+            markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
 
-                if day_check == DayAvailability.AVAILABLE:
-                    if status == TaskStatus.UNTOUCHED:
-                        markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
-                    is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
-                    if not is_assigned.json['isAssigned']:
-                        await state_manager.detect_task_assignation(1)
-                        await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
+            if day_check == DayAvailability.AVAILABLE:
+                if status == TaskStatus.UNTOUCHED:
+                    markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
+                is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
+                if not is_assigned.json['isAssigned']:
+                    await state_manager.detect_task_assignation(1)
+                    await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
-                if content != "" and content is not None:
-                    image = str(content).replace(" ", "")
+            if content != "" and content is not None:
+                image = str(content).replace(" ", "")
+                try:
                     await bot.send_photo(callback.message.chat.id, photo=image, caption=task_str,
                                          reply_markup=markup)
-                else:
-                    await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+                except aiogram.utils.exceptions.BadRequest as e:
+                    await md.error(str(e))
+            else:
+                await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
 
     if sub == Subjects.PHYS.value:
         subject = Subjects.PHYS
 
-        tasks = (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
-                                                                                      days_difficulty_levels[day],
-                                                                                      subject)).json
-        if len(tasks) == 0:
+        tasks = list(filter(lambda current_task: current_task['quiz'] is False,
+                            (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
+                                                                                                  days_difficulty_levels[
+                                                                                                      day],
+                                                                                                  subject)).json))
+        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
+        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
+        if len(tasks) == 0 or len(article) == 0 or len(quiz) == 0:
             await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал на этот день")
             return
 
-        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
         article_pattern = await MessageDrawer.make_article(day, tasks[0]['topic'], article[0]['text'])
         await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern, reply_markup=ShadowButtonClient)
 
-        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
         await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
 
         for task in tasks:
-            if not task['quiz']:
-                topic = task['topic']
-                task_type = task['type']
-                level = task['difficultyLevel']
-                task_text = task['text']
-                content = task['content']
-                status, answer = await check_task_status(callback.from_user.id, day, task['id'])
+            topic = task['topic']
+            task_type = task['type']
+            level = task['difficultyLevel']
+            task_text = task['text']
+            content = task['content']
+            status, answer = await check_task_status(callback.from_user.id, day, task['id'])
 
-                task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
+            task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
 
-                markup = InlineKeyboardMarkup(row_width=1)
-                markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
+            markup = InlineKeyboardMarkup(row_width=1)
+            markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
 
-                if day_check == DayAvailability.AVAILABLE:
-                    if status == TaskStatus.UNTOUCHED:
-                        markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
-                    is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
-                    if not is_assigned.json['isAssigned']:
-                        await state_manager.detect_task_assignation(1)
-                        await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
+            if day_check == DayAvailability.AVAILABLE:
+                if status == TaskStatus.UNTOUCHED:
+                    markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
+                is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
+                if not is_assigned.json['isAssigned']:
+                    await state_manager.detect_task_assignation(1)
+                    await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
-                if content != "" and content is not None:
-                    image = str(content).replace(" ", "")
+            if content != "" and content is not None:
+                image = str(content).replace(" ", "")
+                try:
                     await bot.send_photo(callback.message.chat.id, photo=image, caption=task_str,
                                          reply_markup=markup)
-                else:
-                    await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+                except aiogram.utils.exceptions.BadRequest as e:
+                    await md.error(str(e))
+            else:
+                await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
 
     if sub == Subjects.MATH.value:
         subject = Subjects.MATH
 
-        tasks = (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
-                                                                                      days_difficulty_levels[day],
-                                                                                      subject)).json
-        if len(tasks) == 0:
+        tasks = list(filter(lambda current_task: current_task['quiz'] is False,
+                            (await task_con.get_task_by_class_and_date_and_difficulty_and_subject(class_number, day,
+                                                                                                  days_difficulty_levels[
+                                                                                                      day],
+                                                                                                  subject)).json))
+        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
+        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
+        if len(tasks) == 0 or len(article) == 0 or len(quiz) == 0:
             await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал на этот день")
             return
 
-        article = (await article_con.get_article_by_subject_and_day_and_class(subject, day, class_number)).json
         article_pattern = await MessageDrawer.make_article(day, tasks[0]['topic'], article[0]['text'])
         await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern, reply_markup=ShadowButtonClient)
 
-        quiz = (await quiz_con.get_quiz_by_subject_and_class_and_day(subject, class_number, day)).json
         await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
 
         for task in tasks:
-            if not task['quiz']:
-                topic = task['topic']
-                task_type = task['type']
-                level = task['difficultyLevel']
-                task_text = task['text']
-                content = task['content']
-                status, answer = await check_task_status(callback.from_user.id, day, task['id'])
+            topic = task['topic']
+            task_type = task['type']
+            level = task['difficultyLevel']
+            task_text = task['text']
+            content = task['content']
+            status, answer = await check_task_status(callback.from_user.id, day, task['id'])
 
-                task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
+            task_str = await MessageDrawer.make_task(topic, task_type, level, task_text, status, answer)
 
-                markup = InlineKeyboardMarkup(row_width=1)
-                markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
+            markup = InlineKeyboardMarkup(row_width=1)
+            markup.insert(InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))
 
-                if day_check == DayAvailability.AVAILABLE:
-                    if status == TaskStatus.UNTOUCHED:
-                        markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
-                    is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
-                    if not is_assigned.json['isAssigned']:
-                        await state_manager.detect_task_assignation(1)
-                        await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
+            if day_check == DayAvailability.AVAILABLE:
+                if status == TaskStatus.UNTOUCHED:
+                    markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
+                is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
+                if not is_assigned.json['isAssigned']:
+                    await state_manager.detect_task_assignation(1)
+                    await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
-                if content != "" and content is not None:
-                    image = str(content).replace(" ", "")
+            if content != "" and content is not None:
+                image = str(content).replace(" ", "")
+                try:
                     await bot.send_photo(callback.message.chat.id, photo=image, caption=task_str,
                                          reply_markup=markup)
-                else:
-                    await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+                except aiogram.utils.exceptions.BadRequest as e:
+                    await md.error(str(e))
+            else:
+                await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
 
 
 @dp.callback_query_handler(Text(startswith="taskanswer_"))
@@ -303,6 +322,7 @@ async def process_task_answer(message: types.Message, state: FSMContext):
     await state.reset_state()
     answer = message.text.lower().replace(',', '.').strip()[:200]
     answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
+    current_time = datetime.datetime.now()
     if answer_req.result.status == 409:
         alert = await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
         await asyncio.sleep(5)
@@ -312,6 +332,9 @@ async def process_task_answer(message: types.Message, state: FSMContext):
         alert = await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
         await asyncio.sleep(5)
         await alert.delete()
+    else:
+        await MessageDrawer(message).server_error(answer_req.result.status,
+                                                  f"❌ Что-то пошло не так при сохранении ответа!\nСтатус: <code>{answer_req.result.status}</code>\nВремя: <code>{current_time}</code>\n\nПожалуйста, обратитесь в поддержку.")
     await task_id_input.remove(message.from_user.id)
 
 
@@ -381,14 +404,16 @@ async def process_confirm_delete(message: types.Message, state: FSMContext):
 @Admin.bot_mode(mode, BotCommandsEnum.START)
 @ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
 @check_user_registered(HandlerType.MESSAGE)
+@commands_detector(BotCommandsEnum.START)
 async def start(message: types.Message):
     await bot.send_message(chat_id=message.chat.id, text=start_text, reply_markup=StartButtonClient, parse_mode='HTML')
 
 
 @dp.message_handler(commands=[BotCommandsEnum.LEADERS.value])
-@Admin.bot_mode(mode, BotCommandsEnum.START)
+@Admin.bot_mode(mode, BotCommandsEnum.LEADERS)
 @ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
 @check_user_registered(HandlerType.MESSAGE)
+@commands_detector(BotCommandsEnum.LEADERS)
 async def leaders(message: types.Message):
     await bot.send_message(chat_id=message.chat.id,
                            text="🔝 <b>Таблицы лидеров</b>\n\n<i>Выбери тип таблицы лидеров</i>",
@@ -549,12 +574,10 @@ async def reg_button_callback(message: types.Message):
             await bot.send_photo(chat_id=message['message']['chat']['id'], caption="✅ Ты уже и так зарегистрирован(-а)",
                                  photo=image)
         return
-    log.d(reg_button_callback.__name__, str((reg_users, reg_users_data)))
     await reg_users_data.set(message.from_user.id)
     await reg_users.add(message.from_user.id)
-    log.d(reg_button_callback.__name__, str((reg_users, reg_users_data)))
     await bot.send_message(chat_id=message['message']['chat']['id'],
-                           text="👤 Введи свое настоящее имя:\n\n⚠️ Убедись в правильности написания имени. Указанное имя уже нельзя будет изменить самостоятельно!",
+                           text="👤 Введи свое настоящее <b><u>ИМЯ</u></b>:\n\n⚠️ Убедись в правильности написания имени. Указанное имя уже нельзя будет изменить самостоятельно!",
                            reply_markup=StopRegNameButtonClient)
     await RegName.name.set()
 
@@ -563,11 +586,17 @@ async def reg_button_callback(message: types.Message):
 async def process_reg_name(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.reset_state()
+        if message.text.lower() in str_commands_list:
+            await reg_users_data.remove(message.from_user.id)
+            await reg_users.remove(message.from_user.id)
+            await bot.send_message(chat_id=message['message']['chat']['id'],
+                                   text="❌ Регистрация ученика отменена. Введи имя корректно!")
+            return
         name = message.text.replace(' ', '').capitalize()[:20]
         user: User = reg_users_data.get(message.from_user.id)
         user.name = name
         await bot.send_message(chat_id=message['chat']['id'],
-                               text="👤 Введи свою настоящую фамилию\n\n⚠️ Убедись в правильности написания фамилии. Указанную фамилию уже нельзя будет изменить самостоятельно!",
+                               text="👤 Введи свою настоящую <b><u>ФАМИЛИЮ</u></b>\n\n⚠️ Убедись в правильности написания фамилии. Указанную фамилию уже нельзя будет изменить самостоятельно!",
                                reply_markup=StopRegLastnameButtonClient)
         await RegLastname.lastname.set()
 
@@ -576,6 +605,12 @@ async def process_reg_name(message: types.Message, state: FSMContext):
 async def process_reg_lastname(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.reset_state()
+        if message.text.lower() in str_commands_list:
+            await reg_users_data.remove(message.from_user.id)
+            await reg_users.remove(message.from_user.id)
+            await bot.send_message(chat_id=message['message']['chat']['id'],
+                                   text="❌ Регистрация ученика отменена. Введи фамилию корректно!")
+            return
         lastname = message.text.replace(' ', '').capitalize()[:25]
         user: User = reg_users_data.get(message.from_user.id)
         user.lastname = lastname
@@ -618,8 +653,9 @@ async def class_number_choice_button_callback(callback: types.CallbackQuery):
         if user.class_number is None:
             student_class = callback.data.split('_')[1]
             user.class_number = int(student_class)
-            await bot.send_message(chat_id=callback.message.chat.id, text="🤔 Ты точно выбрал(-а) свой настоящий класс?",
-                               reply_markup=ConfirmClassNumberButtonClient)
+            await bot.send_message(chat_id=callback.message.chat.id,
+                                   text=f"<b>{student_class} класс</b>\n🤔 Ты точно выбрал(-а) свой настоящий класс?",
+                                   reply_markup=ConfirmClassNumberButtonClient)
             return
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 

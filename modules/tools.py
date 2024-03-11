@@ -1,8 +1,8 @@
 import aiogram.types
-import state_instance
-from aiogram.dispatcher import FSMContext
 from aiogram.types import InputFile
 
+import state_instance
+from mathweek.bot_commands import BotCommandsEnum
 from mathweek.buttons import RegButtonClient, TechSupportButtonClient
 from mathweek.loader import bot
 from modules.content_manager import ContentManager
@@ -60,7 +60,15 @@ async def check_task_status(telegram_id: int, day: int, task_id: int) -> tuple[T
     return status, answer
 
 
-
+def commands_detector(command: BotCommandsEnum):
+    def wrapper(call):
+        async def inner(*args):
+            message: aiogram.types.Message = args[0]
+            log.i(commands_detector.__name__, f"Пользователь с ID {message.from_user.id} ({message.from_user.username}) вызвал команду {command.value}")
+            await state_instance.state_manager.detect_command_call()
+            await call(*args)
+        return inner
+    return wrapper
 
 def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
     """Декоратор проверки наличия пользователя в базе данных"""
@@ -68,7 +76,6 @@ def check_user_registered(handler_type: HandlerType = HandlerType.MESSAGE):
     def wrap(call):
         async def wrapper(*args):
             mes: aiogram.types.Message = args[0]
-            await state_instance.state_manager.detect_command_call()
             controller = student_con
             chat_id = handler_type(mes)
             result: ServerResponse = await controller.get_student(telegram_id=mes.from_user.id)

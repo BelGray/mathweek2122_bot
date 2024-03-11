@@ -3,6 +3,7 @@ import enum
 
 from aiogram import types
 
+
 class BotCommandsEnum(enum.Enum):
     START = 'start'
     LEADERS = 'leaders'
@@ -10,6 +11,10 @@ class BotCommandsEnum(enum.Enum):
     PROFILE = 'profile'
 
     handler = '[обработка промежуточного события]'
+
+
+str_commands_list = [f"/{BotCommandsEnum.START.value}", f"/{BotCommandsEnum.LEADERS.value}", f"/{BotCommandsEnum.EVENT_CALENDAR.value}", f"/{BotCommandsEnum.PROFILE.value}"]
+
 
 async def set_default_commands(dp):
     """Команды бота"""
