@@ -629,6 +629,7 @@ async def class_number_choice_button_callback(callback: types.CallbackQuery):
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def confirm_class_button_callback(message: types.Message):
     user: User = reg_users_data.get(message.from_user.id)
+    await bot.delete_message(chat_id=message['message']['chat']['id'], message_id=message['message']['message_id'])
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(
             message.from_user.id) and user.class_number is not None:
         markup = InlineKeyboardMarkup(row_width=6)
@@ -638,11 +639,11 @@ async def confirm_class_button_callback(message: types.Message):
                                text=f"📚 <b>{user.class_number} класс</b>\n\n🅰️ Выбери букву класса:  ",
                                reply_markup=markup, parse_mode='HTML')
         return
-    await bot.delete_message(chat_id=message['message']['chat']['id'], message_id=message['message']['message_id'])
 
 
 @dp.callback_query_handler(text='stop_class_reg')
 async def stop_class_reg_button_callback(message: types.Message):
+    await bot.delete_message(chat_id=message['message']['chat']['id'], message_id=message['message']['message_id'])
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await reg_users_data.remove(message.from_user.id)
         await reg_users.remove(message.from_user.id)
@@ -652,7 +653,6 @@ async def stop_class_reg_button_callback(message: types.Message):
         await asyncio.sleep(5)
         await cancel_message.delete()
         return
-    await bot.delete_message(chat_id=message['message']['chat']['id'], message_id=message['message']['message_id'])
 
 
 @dp.callback_query_handler(text='stop_reg_name', state=RegName.name)
