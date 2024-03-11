@@ -301,7 +301,7 @@ async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMC
 async def process_task_answer(message: types.Message, state: FSMContext):
     task_id = task_id_input.get(message.from_user.id)
     await state.reset_state()
-    answer = message.text.lower().replace(',', '.').strip()
+    answer = message.text.lower().replace(',', '.').strip()[:200]
     answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
     if answer_req.result.status == 409:
         alert = await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
