@@ -59,7 +59,8 @@ class MessageDrawer:
 
     @classmethod
     async def make_article(cls, day: int, label: str, text: str) -> str:
-        text = f'📰 <b>{day} марта. Статья на тему "{label}"</b>\n\n<blockquote>{text}</blockquote>'
+        title = f'<b>{day} марта. Статья на тему "{label}"</b>' if day != DateManager.event_days[-1] else f'<b>{day} марта. Завершающая статья (просто интересный факт без темы)</b>'
+        text = f'📰 {title}\n\n<blockquote>{text}</blockquote>'
         return text
 
     async def quiz(self, variants_list: list, label: str):
