@@ -3,7 +3,7 @@ import asyncio
 import atexit
 import datetime
 import random
-
+import aiogram.utils.markdown as fmt
 import aiogram.utils.exceptions
 import configuration_instance
 import requests
@@ -12,6 +12,7 @@ from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMedia, InputFile
 from modules import tools
+from modules.current_user_answer import LastUserAnswer
 from state_instance import state_manager
 from mathweek.buttons import *
 from mathweek.message_text import *
@@ -19,7 +20,7 @@ from modules.date_manager import DateManager
 from modules.execution_controller import ExecutionController
 from modules.message_design import MessageDrawer
 from modules.server.data.dataclasses import student_class_letters, Student, ServerResponse, student_class_subjects, \
-    subject_symbols, days_difficulty_levels, tasks_levels
+    subject_symbols, days_difficulty_levels, tasks_levels, subject_labels
 from modules.server.data.enums import Subjects, DayAvailability, TaskStatus
 from modules.server.requests_instance import student_con, lead_con, task_con, article_con, quiz_con, student_answer_con
 from mathweek.admin import Admin, HandlerType
@@ -317,7 +318,9 @@ async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMC
 
 @dp.message_handler(state=AnswerInput.answer, content_types=types.ContentTypes.TEXT)
 async def process_task_answer(message: types.Message, state: FSMContext):
-    task_id = task_id_input.get(message.from_user.id)
+    task_id = int(task_id_input.get(message.from_user.id))
+    task = (await task_con.get_task(task_id)).json
+    student = (await student_con.get_student(message.from_user.id)).json
     await state.reset_state()
     answer = message.text.lower().replace(',', '.').strip()[:200]
     answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
@@ -328,6 +331,7 @@ async def process_task_answer(message: types.Message, state: FSMContext):
         await alert.delete()
     elif answer_req.result.status // 100 == 2:
         await state_manager.detect_answer()
+        await LastUserAnswer.set(name=student['name'], lastname=student['lastName'], class_number=student['classNumber'], class_letter=student['classLetter'], subject=str(task['subject']).lower())
         alert = await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
         await asyncio.sleep(5)
         await alert.delete()
@@ -348,7 +352,10 @@ async def clear_button_callback(callback: types.CallbackQuery):
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def go_back_calendar_button_callback(callback: types.CallbackQuery):
-    text = f'📆 <b>Календарь события</b>\n\n<blockquote>📆 <b>Неделя математики 2024</b>: {DateManager.days_text[DateManager.day()]}</blockquote>\n\n<i>Выполняй ежедневно задания и получай баллы за правильные ответы</i>\n\n{points_system_text}\n<blockquote>❗ Ежедневный материал: статья, викторина по статье, два задания на тему статьи</blockquote>\n<blockquote>❗ Задания дня можно решить только в данный день. На ввод ответа дается <u>1 попытка</u></blockquote>'
+    last_answer = f"{subject_labels[LastUserAnswer.subject]} {LastUserAnswer.class_number} класс. {fmt.quote_html(LastUserAnswer.name)} {fmt.quote_html(LastUserAnswer.lastname)} {LastUserAnswer.class_number}{LastUserAnswer.class_letter}" if not LastUserAnswer.is_none() else "Нет данных"
+
+    text = f'📆 <b>Календарь события</b>\n\n<blockquote>📆 <b>Неделя математики 2024</b>: {DateManager.days_text[DateManager.day()]}</blockquote>\n<blockquote>🕘 <b>Последний ответ</b>:\n{last_answer}</blockquote>\n\n<i>Выполняй ежедневно задания и получай баллы за правильные ответы</i>\n\n{points_system_text}\n<blockquote>❗ Ежедневный материал: статья, викторина по статье, два задания на тему статьи</blockquote>\n<blockquote>❗ Задания дня можно решить только в данный день. На ввод ответа дается <u>1 попытка</u></blockquote>'
+
     markup = InlineKeyboardMarkup(row_width=3)
     for day in DateManager.event_days:
         markup.insert(InlineKeyboardButton(text=f'️{(await tools.check_calendar_day(day)).value} {day} марта',

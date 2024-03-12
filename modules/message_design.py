@@ -10,8 +10,10 @@ from mathweek.logger import log
 from mathweek.message_text import points_system_text
 from modules import tools
 from modules.content_manager import ContentManager
+from modules.current_user_answer import LastUserAnswer
 from modules.date_manager import DateManager
-from modules.server.data.dataclasses import student_class_subjects, ServerResponse, tasks_levels
+from modules.server.data.dataclasses import student_class_subjects, ServerResponse, tasks_levels, subject_symbols, \
+    subject_labels
 from modules.server.data.enums import HandlerType, TaskTypes, TaskStatus
 from modules.server.requests_instance import student_con, student_answer_con, lead_con
 from modules.tools import get_leaderboard_place
@@ -47,7 +49,10 @@ class MessageDrawer:
                              )
 
     async def event_calendar(self):
-        text = f'📆 <b>Календарь события</b>\n\n<blockquote>📆 <b>Неделя математики 2024</b>: {DateManager.days_text[DateManager.day()]}</blockquote>\n\n<i>Выполняй ежедневно задания и получай баллы за правильные ответы</i>\n\n{points_system_text}\n<blockquote>❗ Ежедневный материал: статья, викторина по статье, два задания на тему статьи</blockquote>\n<blockquote>❗ Задания дня можно решить только в данный день. На ввод ответа дается <u>1 попытка</u></blockquote>'
+
+        last_answer = f"{subject_labels[LastUserAnswer.subject]} {LastUserAnswer.class_number} класс. {fmt.quote_html(LastUserAnswer.name)} {fmt.quote_html(LastUserAnswer.lastname)} {LastUserAnswer.class_number}{LastUserAnswer.class_letter}" if not LastUserAnswer.is_none() else "Нет данных"
+
+        text = f'📆 <b>Календарь события</b>\n\n<blockquote>📆 <b>Неделя математики 2024</b>: {DateManager.days_text[DateManager.day()]}</blockquote>\n<blockquote>🕘 <b>Последний ответ</b>:\n{last_answer}</blockquote>\n\n<i>Выполняй ежедневно задания и получай баллы за правильные ответы</i>\n\n{points_system_text}\n<blockquote>❗ Ежедневный материал: статья, викторина по статье, два задания на тему статьи</blockquote>\n<blockquote>❗ Задания дня можно решить только в данный день. На ввод ответа дается <u>1 попытка</u></blockquote>'
         markup = InlineKeyboardMarkup(row_width=3)
         for day in DateManager.event_days:
             markup.insert(InlineKeyboardButton(text=f'️{(await tools.check_calendar_day(day)).value} {day} марта',

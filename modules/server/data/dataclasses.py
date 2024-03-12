@@ -23,6 +23,12 @@ subject_symbols = {
     'it': '🌐'
 }
 
+subject_labels = {
+    'math': '🔢 Математика',
+    'phys': '⚛️ Физика',
+    'it': '🌐 Информатика'
+}
+
 days_difficulty_levels = {
     11: 1,
     12: 1,
