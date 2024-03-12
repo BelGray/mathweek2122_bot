@@ -10,29 +10,26 @@ from modules.server.requests_instance import task_con, student_answer_con
 class DateManager:
     """Менеджер дат"""
 
-    weekend_days = (8, 9, 10)
-    event_days = (4, 5, 6, 7, 11, 12, 13)
-    send_results_day = 14
+    weekend_days = ()
+    event_days = (11, 12, 13, 14, 15, 16, 17)
+    send_results_day = 18
 
     days_text = {
-        -1: "Событие скоро начнется" if datetime.datetime.now() < datetime.datetime(2024, 3, 4) else "Событие уже завершено",
-        4: "День 1/7",
-        5: "День 2/7",
-        6: "День 3/7",
-        7: "День 4/7",
-        8: "Выходной",
-        9: "Выходной",
-        10: "Выходной",
-        11: "День 5/7",
-        12: "День 6/7",
-        13: "День 7/7 (Завтра событие завершится)"
+        -1: "Событие скоро начнется" if datetime.datetime.now() < datetime.datetime(2024, 3, event_days[0]) else "Событие уже завершено",
+        11: "День 1/7",
+        12: "День 2/7",
+        13: "День 3/7",
+        14: "День 4/7",
+        15: "День 5/7",
+        16: "День 6/7",
+        17: "День 7/7 (Завтра событие завершится)"
     }
 
     @staticmethod
     def day() -> int:
         """Получить текущий день в марте (если на момент вызова метода не март, то вертнется -1)"""
         date = datetime.datetime.now()
-        return date.day if date.month == 3 and 4 <= date.day <= 13 else -1
+        return date.day if date.month == 3 and DateManager.event_days[0] <= date.day <= DateManager.event_days[-1] else -1
 
     @staticmethod
     def time():

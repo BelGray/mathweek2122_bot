@@ -31,7 +31,7 @@ from aiogram import types
 from modules.user_dict import UserRegData, User, UserData
 from modules.user_list import UserList
 
-# todo: написать удобный запуск бота
+# todo: написать удобный запуск бота, изменить даты и провести полный дебаг (особенно апишки)
 
 mode = BotMode.DEVELOPMENT  # <- Режим, в котором сейчас находится бот
 
@@ -62,7 +62,7 @@ class RegLastname(StatesGroup):
 async def on_startup(dispatcher):
     log.s('on_startup', 'Успешное подключение к Telegram API')
     await state_manager.state_control_loop()
-    await DateManager.set_event_time_control_loop()
+    # await DateManager.set_event_time_control_loop()
     ContentManager.init_directory('content')
     await set_default_commands(dispatcher)
 
@@ -171,8 +171,8 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                         await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
                 if content != "" and content is not None:
-                    image = requests.get(str(content).replace(" ", ""))
-                    await bot.send_photo(callback.message.chat.id, InputFile(image.content), caption=task_str,
+                    image = str(content).replace(" ", "")
+                    await bot.send_photo(callback.message.chat.id, photo=image, caption=task_str,
                                          reply_markup=markup)
                 else:
                     await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
@@ -216,8 +216,8 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                         await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
                 if content != "" and content is not None:
-                    image = requests.get(str(content).replace(" ", ""))
-                    await bot.send_photo(callback.message.chat.id, InputFile(image.content), caption=task_str,
+                    image = str(content).replace(" ", "")
+                    await bot.send_photo(callback.message.chat.id, photo=image, caption=task_str,
                                          reply_markup=markup)
                 else:
                     await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
@@ -261,8 +261,8 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                         await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
                 if content != "" and content is not None:
-                    image = requests.get(str(content).replace(" ", ""))
-                    await bot.send_photo(callback.message.chat.id, InputFile(image.content), caption=task_str,
+                    image = str(content).replace(" ", "")
+                    await bot.send_photo(callback.message.chat.id, photo=image, caption=task_str,
                                          reply_markup=markup)
                 else:
                     await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
@@ -301,7 +301,7 @@ async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMC
 async def process_task_answer(message: types.Message, state: FSMContext):
     task_id = task_id_input.get(message.from_user.id)
     await state.reset_state()
-    answer = message.text.lower().replace(',', '.')
+    answer = message.text.lower().replace(',', '.').strip()
     answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
     if answer_req.result.status == 409:
         await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")

@@ -24,13 +24,13 @@ subject_symbols = {
 }
 
 days_difficulty_levels = {
-    4: 1,
-    5: 1,
-    6: 2,
-    7: 2,
-    11: 3,
-    12: 3,
-    13: 4
+    11: 1,
+    12: 1,
+    13: 2,
+    14: 2,
+    15: 3,
+    16: 3,
+    17: 4
 }
 
 student_class_subjects = {
