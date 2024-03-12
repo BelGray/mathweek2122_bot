@@ -3,6 +3,8 @@ import asyncio
 import atexit
 import datetime
 import random
+import re
+
 import aiogram.utils.markdown as fmt
 import aiogram.utils.exceptions
 import configuration_instance
@@ -592,13 +594,13 @@ async def reg_button_callback(message: types.Message):
 async def process_reg_name(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.reset_state()
-        if message.text.lower() in str_commands_list:
+        name = message.text.replace(' ', '').capitalize()[:20]
+        if not re.match("^[а-яА-Я]{3,}$", name):
             await reg_users_data.remove(message.from_user.id)
             await reg_users.remove(message.from_user.id)
-            await bot.send_message(chat_id=message['message']['chat']['id'],
+            await bot.send_message(chat_id=message.chat.id,
                                    text="❌ Регистрация ученика отменена. Введи имя корректно!")
             return
-        name = message.text.replace(' ', '').capitalize()[:20]
         user: User = reg_users_data.get(message.from_user.id)
         user.name = name
         await bot.send_message(chat_id=message['chat']['id'],
@@ -611,13 +613,13 @@ async def process_reg_name(message: types.Message, state: FSMContext):
 async def process_reg_lastname(message: types.Message, state: FSMContext):
     if reg_users.is_involved(message.from_user.id) and reg_users_data.is_involved(message.from_user.id):
         await state.reset_state()
-        if message.text.lower() in str_commands_list:
+        lastname = message.text.replace(' ', '').capitalize()[:25]
+        if not re.match("^[а-яА-Я]{3,}$", lastname):
             await reg_users_data.remove(message.from_user.id)
             await reg_users.remove(message.from_user.id)
-            await bot.send_message(chat_id=message['message']['chat']['id'],
+            await bot.send_message(chat_id=message.chat.id,
                                    text="❌ Регистрация ученика отменена. Введи фамилию корректно!")
             return
-        lastname = message.text.replace(' ', '').capitalize()[:25]
         user: User = reg_users_data.get(message.from_user.id)
         user.lastname = lastname
         markup = InlineKeyboardMarkup(row_width=6)
