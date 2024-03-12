@@ -293,17 +293,20 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
 async def taskanswer_button_callback(callback: types.CallbackQuery):
-    data = callback.data.split("_")
-    task_id = int(data[1])
-    await task_id_input.set(callback.from_user.id, task_id)
-    task = (await task_con.get_task(task_id)).json
-    day_checker = await check_calendar_day(task['day'])
-    if day_checker == DayAvailability.AVAILABLE:
-        await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ",
-                               reply_markup=StopAnswerButtonClient)
-        await AnswerInput.answer.set()
+    if not task_id_input.is_involved(callback.from_user.id):
+        data = callback.data.split("_")
+        task_id = int(data[1])
+        await task_id_input.set(callback.from_user.id, task_id)
+        task = (await task_con.get_task(task_id)).json
+        day_checker = await check_calendar_day(task['day'])
+        if day_checker == DayAvailability.AVAILABLE:
+            await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ",
+                                   reply_markup=StopAnswerButtonClient)
+            await AnswerInput.answer.set()
+        else:
+            await callback.answer("⛔ На это задание нельзя ответить!", show_alert=True)
     else:
-        await callback.answer("⛔ На это задание нельзя ответить!", show_alert=True)
+        await callback.answer('✏️ Ты уже отвечаешь на это задание!', show_alert=True)
 
 
 @dp.callback_query_handler(text='stop_answer', state=AnswerInput.answer)
@@ -312,35 +315,37 @@ async def stop_answer_button_callback(callback: types.CallbackQuery, state: FSMC
     if task_id_input.is_involved(callback.from_user.id):
         await state.reset_state()
         await task_id_input.remove(callback.from_user.id)
-
-        alert = await bot.send_message(chat_id=callback.message.chat.id, text="⛔ Ввод ответа отменен")
-        await asyncio.sleep(5)
-        await alert.delete()
+        await callback.answer("⛔ Ввод ответа отменен", show_alert=True)
 
 
 @dp.message_handler(state=AnswerInput.answer, content_types=types.ContentTypes.TEXT)
 async def process_task_answer(message: types.Message, state: FSMContext):
-    task_id = int(task_id_input.get(message.from_user.id))
-    task = (await task_con.get_task(task_id)).json
-    student = (await student_con.get_student(message.from_user.id)).json
     await state.reset_state()
-    answer = message.text.lower().replace(',', '.').strip()[:200]
-    answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
-    current_time = datetime.datetime.now()
-    if answer_req.result.status == 409:
-        alert = await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
-        await asyncio.sleep(5)
-        await alert.delete()
-    elif answer_req.result.status // 100 == 2:
-        await state_manager.detect_answer()
-        await LastUserAnswer.set(name=student['name'], lastname=student['lastName'], class_number=student['classNumber'], class_letter=student['classLetter'], subject=str(task['subject']).lower())
-        alert = await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
-        await asyncio.sleep(5)
-        await alert.delete()
+    if task_id_input.is_involved(message.from_user.id):
+        task_id = int(task_id_input.get(message.from_user.id))
+        task = (await task_con.get_task(task_id)).json
+        student = (await student_con.get_student(message.from_user.id)).json
+        answer = message.text.lower().replace(',', '.').strip()[:200]
+        answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
+        current_time = datetime.datetime.now()
+        if answer_req.result.status == 409:
+            alert = await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
+            await asyncio.sleep(5)
+            await alert.delete()
+        elif answer_req.result.status // 100 == 2:
+            await state_manager.detect_answer()
+            await LastUserAnswer.set(name=student['name'], lastname=student['lastName'],
+                                     class_number=student['classNumber'], class_letter=student['classLetter'],
+                                     subject=str(task['subject']).lower())
+            alert = await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
+            await asyncio.sleep(5)
+            await alert.delete()
+        else:
+            await MessageDrawer(message).server_error(answer_req.result.status,
+                                                      f"❌ Что-то пошло не так при сохранении ответа!\nСтатус: <code>{answer_req.result.status}</code>\nВремя: <code>{current_time}</code>\n\nПожалуйста, обратитесь в поддержку.")
+        await task_id_input.remove(message.from_user.id)
     else:
-        await MessageDrawer(message).server_error(answer_req.result.status,
-                                                  f"❌ Что-то пошло не так при сохранении ответа!\nСтатус: <code>{answer_req.result.status}</code>\nВремя: <code>{current_time}</code>\n\nПожалуйста, обратитесь в поддержку.")
-    await task_id_input.remove(message.from_user.id)
+        await message.answer('❌ Ты не можешь отвечать на этот вопрос!')
 
 
 @dp.callback_query_handler(text='clear')
