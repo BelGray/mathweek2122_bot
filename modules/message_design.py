@@ -125,7 +125,7 @@ class MessageDrawer:
         class_number = student_data['classNumber']
         class_letter = student_data['classLetter']
 
-        answers_count = len((await student_answer_con.get_student_answers_by_telegram_id(telegram_id)).json)
+        answers_count = len(list(filter(lambda task: task["customStudentAnswer"] is not None, (await student_answer_con.get_student_answers_by_telegram_id(telegram_id)).json)))
 
         points_sum = (await student_con.get_student_points(telegram_id)).json['object']
 
@@ -142,4 +142,4 @@ class MessageDrawer:
             number_leader_places_str += f"\n <i>{sub[1]}</i>: <code>{await get_leaderboard_place((await lead_con.get_leaderboard_by_subject_and_class_number(sub[0], class_number)).json, telegram_id)} место</code>"
 
         text = f"👤 <b>{lastname} {name} {class_number}{class_letter}</b>\n<blockquote>📆 <b>Неделя математики 2024</b>: {DateManager.days_text[DateManager.day()]}</blockquote>\n\n{points_str}</blockquote>\n\n💬 Ответов на задания: <code>{answers_count}</code>\n📌 Баллов по всем предметам: <code>{points_sum}</code>\n\n{letter_leader_places_str}</blockquote>\n\n{number_leader_places_str}</blockquote>"
-        await bot.send_message(chat_id=self.__chat_id, text=text, parse_mode='HTML')
+        await bot.send_message(chat_id=self.__chat_id, text=text, parse_mode='HTML', reply_markup=ShadowButtonClient)

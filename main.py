@@ -168,6 +168,7 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                         markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
                     is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
                     if not is_assigned.json['isAssigned']:
+                        await state_manager.detect_task_assignation(1)
                         await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
                 if content != "" and content is not None:
@@ -213,6 +214,7 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                         markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
                     is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
                     if not is_assigned.json['isAssigned']:
+                        await state_manager.detect_task_assignation(1)
                         await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
                 if content != "" and content is not None:
@@ -258,6 +260,7 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                         markup.insert(InlineKeyboardButton(text="💬 Ответить", callback_data=f"taskanswer_{task['id']}"))
                     is_assigned = await student_answer_con.is_task_assigned(callback.from_user.id, task['id'])
                     if not is_assigned.json['isAssigned']:
+                        await state_manager.detect_task_assignation(1)
                         await student_answer_con.assign_task_to_student(callback.from_user.id, task['id'])
 
                 if content != "" and content is not None:
@@ -282,7 +285,7 @@ async def taskanswer_button_callback(callback: types.CallbackQuery):
                                reply_markup=StopAnswerButtonClient)
         await AnswerInput.answer.set()
     else:
-        await bot.send_message(chat_id=callback.message.chat.id, text="⛔ На это задание ответить нельзя")
+        await callback.answer("⛔ На это задание нельзя ответить!", show_alert=True)
 
 
 @dp.callback_query_handler(text='stop_answer', state=AnswerInput.answer)
@@ -304,9 +307,14 @@ async def process_task_answer(message: types.Message, state: FSMContext):
     answer = message.text.lower().replace(',', '.').strip()
     answer_req = await student_answer_con.set_student_custom_answer(answer, message.from_user.id, task_id)
     if answer_req.result.status == 409:
-        await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
+        alert = await bot.send_message(chat_id=message.chat.id, text="❌ Ты уже ранее отвечал на это задание")
+        await asyncio.sleep(5)
+        await alert.delete()
     elif answer_req.result.status // 100 == 2:
-        await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
+        await state_manager.detect_answer()
+        alert = await bot.send_message(chat_id=message.chat.id, text="✅ Ответ сохранен!")
+        await asyncio.sleep(5)
+        await alert.delete()
     await task_id_input.remove(message.from_user.id)
 
 
@@ -613,7 +621,7 @@ async def class_number_choice_button_callback(callback: types.CallbackQuery):
         if user.class_number is None:
             student_class = callback.data.split('_')[1]
             user.class_number = int(student_class)
-            await bot.send_message(chat_id=callback.message.chat.id, text="🤔 Ты точно выбрал свой настоящий класс?",
+            await bot.send_message(chat_id=callback.message.chat.id, text="🤔 Ты точно выбрал(-а) свой настоящий класс?",
                                reply_markup=ConfirmClassNumberButtonClient)
             return
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
