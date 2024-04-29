@@ -1,9 +1,10 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
 from mathweek.admin import Support
+import modules.demo_mode.demo as demo
 
 RegButtonClient = (InlineKeyboardMarkup(row_width=1)
-                   .insert(InlineKeyboardButton(text='🗝️ Зарегистрироваться', callback_data="reg")))
+                   .insert(InlineKeyboardButton(text='🗝️ Зарегистрироваться', callback_data="reg"))
+                   )
 TechSupportButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='⚙️ Обратиться в техническую поддержку', url=Support.BOT.value)))
 TasksSupportButtonClient = (InlineKeyboardMarkup(row_width=1)
@@ -25,6 +26,7 @@ StartButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='️📆 Календарь события', callback_data="event_calendar"))
                    .insert(InlineKeyboardButton(text='⚙️ Обратиться в техническую поддержку', url=Support.BOT.value))
                    .insert(InlineKeyboardButton(text='📚 Обратиться в поддержку по заданиям', url=Support.TASKS.value))
+                   .insert(demo.DemoCalendar.demo_button)
 )
 
 StartGoBackButtonClient = (InlineKeyboardMarkup(row_width=1)
@@ -55,3 +57,6 @@ ShadowButtonClient = (InlineKeyboardMarkup(row_width=1)
 
 StopAnswerButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='❌ Отменить ввод ответа', callback_data="stop_answer")))
+
+StopDemoAnswerButtonClient = (InlineKeyboardMarkup(row_width=1)
+                   .insert(InlineKeyboardButton(text='❌ Отменить ввод ответа', callback_data="stop_demo_answer")))

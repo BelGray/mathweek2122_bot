@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import atexit
 import datetime
 import random
 import re
@@ -8,13 +7,12 @@ import re
 import aiogram.utils.markdown as fmt
 import aiogram.utils.exceptions
 import configuration_instance
-import requests
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMedia, InputFile
 from modules import tools
 from modules.current_user_answer import LastUserAnswer
+from modules.demo_mode.demo import DemoCallbackData, DemoCalendar
 from state_instance import state_manager
 from mathweek.buttons import *
 from mathweek.message_text import *
@@ -26,7 +24,7 @@ from modules.server.data.dataclasses import student_class_letters, Student, Serv
 from modules.server.data.enums import Subjects, DayAvailability, TaskStatus
 from modules.server.requests_instance import student_con, lead_con, task_con, article_con, quiz_con, student_answer_con
 from mathweek.admin import Admin, HandlerType
-from mathweek.bot_commands import set_default_commands, BotCommandsEnum, str_commands_list
+from mathweek.bot_commands import set_default_commands, BotCommandsEnum
 from mathweek.loader import dp, bot
 from mathweek.logger import log
 from modules.content_manager import ContentManager
@@ -43,9 +41,12 @@ reg_users = UserList()
 reg_users_data = UserRegData()
 
 task_id_input = UserData()
+demo_task_id_input = UserData()
 
 user_input = UserData()
 
+class DemoAnswerInput(StatesGroup):
+    demo_answer = State()
 
 class AnswerInput(StatesGroup):
     answer = State()
@@ -95,6 +96,46 @@ async def event_calendar(message: types.Message):
 @check_user_registered(HandlerType.CALLBACK)
 async def event_calendar_button_callback(callback: types.CallbackQuery):
     await MessageDrawer(callback.message, HandlerType.MESSAGE).event_calendar()
+
+
+@dp.callback_query_handler(text=DemoCallbackData.demo_calendar.value)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def demo_event_calendar_button_callback(callback: types.CallbackQuery):
+    await DemoCalendar.on_button_click(DemoCallbackData.demo_calendar, callback, callback.message.chat.id)
+
+
+@dp.callback_query_handler(text=DemoCallbackData.demo_subtaskday_math.value)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def demo_subtaskday_math_button_callback(callback: types.CallbackQuery):
+    await DemoCalendar.on_button_click(DemoCallbackData.demo_subtaskday_math, callback, callback.message.chat.id)
+
+
+@dp.callback_query_handler(text=DemoCallbackData.demo_subtaskday_phys.value)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def demo_subtaskday_phys_button_callback(callback: types.CallbackQuery):
+    await DemoCalendar.on_button_click(DemoCallbackData.demo_subtaskday_phys, callback, callback.message.chat.id)
+
+
+@dp.callback_query_handler(text=DemoCallbackData.demo_subtaskday_it.value)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def demo_subtaskday_it_button_callback(callback: types.CallbackQuery):
+    await DemoCalendar.on_button_click(DemoCallbackData.demo_subtaskday_it, callback, callback.message.chat.id)
+
+
+@dp.callback_query_handler(text=DemoCallbackData.demo_taskday.value)
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+@check_user_registered(HandlerType.CALLBACK)
+async def demo_taskday_button_callback(callback: types.CallbackQuery):
+    await DemoCalendar.on_button_click(DemoCallbackData.demo_taskday, callback, callback.message.chat.id)
 
 
 @dp.callback_query_handler(Text(startswith="taskday_"))
@@ -287,6 +328,46 @@ async def sub_task_day_button_callback(callback: types.CallbackQuery):
                     await md.error(str(e))
             else:
                 await bot.send_message(chat_id=callback.message.chat.id, text=task_str, reply_markup=markup)
+
+
+@dp.callback_query_handler(Text(startswith="taskdemoanswer_"))
+@Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
+@ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
+async def taskdemoanswer_button_callback(callback: types.CallbackQuery):
+    if not demo_task_id_input.is_involved(callback.from_user.id):
+        data = callback.data.split("_")
+        task_id = int(data[1])
+        await demo_task_id_input.set(callback.from_user.id, task_id)
+        await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ",
+                               reply_markup=StopDemoAnswerButtonClient)
+        await DemoAnswerInput.demo_answer.set()
+    else:
+        await callback.answer('✏️ Ты уже отвечаешь на это задание!', show_alert=True)
+
+@dp.callback_query_handler(text='stop_answer', state=DemoAnswerInput.demo_answer)
+async def stop_demo_answer_button_callback(callback: types.CallbackQuery, state: FSMContext):
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
+    if demo_task_id_input.is_involved(callback.from_user.id):
+        await state.reset_state()
+        await demo_task_id_input.remove(callback.from_user.id)
+        await callback.answer("⛔ Ввод ответа отменен", show_alert=True)
+
+
+@dp.message_handler(state=DemoAnswerInput.demo_answer, content_types=types.ContentTypes.TEXT)
+async def process_demo_task_answer(message: types.Message, state: FSMContext):
+    await state.reset_state()
+    if demo_task_id_input.is_involved(message.from_user.id):
+        task_id = int(demo_task_id_input.get(message.from_user.id))
+        task = (await task_con.get_task(task_id)).json
+        answer = message.text.lower().replace(',', '.').strip()[:200]
+        correct_answer = str(task['answers'][0]['text']).lower().replace(',', '.').strip()[:200]
+        if answer == correct_answer:
+            await bot.send_message(chat_id=message.chat.id, text="✅ Ты ответил(-а) верно!")
+        else:
+            await bot.send_message(chat_id=message.chat.id, text="❌ Ответ неверный!")
+        await demo_task_id_input.remove(message.from_user.id)
+    else:
+        await message.answer('❌ Ты не можешь отвечать на этот вопрос!')
 
 
 @dp.callback_query_handler(Text(startswith="taskanswer_"))

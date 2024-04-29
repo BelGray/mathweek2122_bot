@@ -3,6 +3,7 @@ import enum
 import types
 import aiogram
 from aiogram.dispatcher import FSMContext
+from aiogram.types import ChatActions
 
 from mathweek.bot_commands import BotCommandsEnum
 from mathweek.loader import bot
@@ -33,6 +34,7 @@ class Admin:
                 message: aiogram.types.Message = args[0]
                 chat_id = handler_type(message)
                 log.i('bot_mode', f'Пользователь {message.from_user.username} вызвал команду /{command.value}')
+                await bot.send_chat_action(chat_id, ChatActions.TYPING)
                 if status == bot_config.BotMode.TESTING:
                     if Admin.is_admin(message.from_user.id):
                         await call(*args)

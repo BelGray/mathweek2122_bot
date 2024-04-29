@@ -34,6 +34,14 @@ class TaskController(ServerRequests):
                 return ServerResponse(response, (await response.json()), (await response.text()))
 
     @ServerRequests.request_log(HTTPMethods.GET)
+    async def get_random_task(self, subject: Subjects) -> ServerResponse:
+        """Получить задание"""
+        endpoint = f"task.getRandom?subject={subject.value}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=super().url + endpoint) as response:
+                return ServerResponse(response, (await response.json()), (await response.text()))
+
+    @ServerRequests.request_log(HTTPMethods.GET)
     async def get_task(self, task_id: int) -> ServerResponse:
         """Получить задание"""
         endpoint = f"task.get?taskId={task_id}"
