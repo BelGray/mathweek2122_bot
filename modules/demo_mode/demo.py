@@ -7,6 +7,7 @@ import modules.message_design as ms_design
 from modules.server.data.dataclasses import subject_labels
 from modules.server.data.enums import Subjects, HandlerType, TaskStatus
 from modules.server.requests_instance import task_con
+from modules.server.simple_retry import RandomStuffGetter
 
 
 class DemoCallbackData(enum.Enum):
@@ -18,11 +19,12 @@ class DemoCallbackData(enum.Enum):
 
 
 class DemoCalendar:
+    """Демоверсия календаря события"""
     demo_button = InlineKeyboardButton(text="📅 (ДЕМО) Календарь события",
                                        callback_data=DemoCallbackData.demo_calendar.value)
 
     @staticmethod
-    async def _event_calendar(chat_id: int):
+    async def event_calendar(chat_id: int):
 
         last_answer = f"Нет данных"
 
@@ -38,7 +40,7 @@ class DemoCalendar:
     async def on_button_click(data: DemoCallbackData, callback: aiogram.types.CallbackQuery, chat_id: int):
         if data == DemoCallbackData.demo_calendar:
             await callback.message.delete()
-            await DemoCalendar._event_calendar(chat_id)
+            await DemoCalendar.event_calendar(chat_id)
         elif data == DemoCallbackData.demo_taskday:
             markup = InlineKeyboardMarkup(row_width=3)
             markup.insert(InlineKeyboardButton(text='️⬅️ Назад',
@@ -55,20 +57,15 @@ class DemoCalendar:
         elif data == DemoCallbackData.demo_subtaskday_math:
             sub = Subjects.MATH
             await callback.message.delete()
-            material = await task_con.get_random_task(sub)
             md = ms_design.MessageDrawer(callback, HandlerType.CALLBACK)
-            if material.result.status == 500:
-                await md.server_error(material.result.status, "❌ Произошла ошибка при получении материала.")
+            material = await RandomStuffGetter.get(sub)
+            if material is None:
+                await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
                 return
             article = material.json['article']
             quiz = material.json['quiz']
             tasks = material.json['task']
             day = article['day']
-            if tasks[0]['text'].lower() == 'none' or tasks[1]['text'].lower() == 'none' or quiz[0][
-                'text'].lower() == 'none' or article[
-                'text'].lower() == 'none':
-                await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
-                return
             article_pattern = await ms_design.MessageDrawer.make_article(day, tasks[0]['topic'], article['text'])
             await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern,
                                    reply_markup=(InlineKeyboardMarkup(row_width=1)
@@ -102,20 +99,15 @@ class DemoCalendar:
         elif data == DemoCallbackData.demo_subtaskday_phys:
             sub = Subjects.PHYS
             await callback.message.delete()
-            material = await task_con.get_random_task(sub)
             md = ms_design.MessageDrawer(callback, HandlerType.CALLBACK)
-            if material.result.status == 500:
-                await md.server_error(material.result.status, "❌ Произошла ошибка при получении материала.")
+            material = await RandomStuffGetter.get(sub)
+            if material is None:
+                await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
                 return
             article = material.json['article']
             quiz = material.json['quiz']
             tasks = material.json['task']
             day = article['day']
-            if tasks[0]['text'].lower() == 'none' or tasks[1]['text'].lower() == 'none' or quiz[0][
-                'text'].lower() == 'none' or article[
-                'text'].lower() == 'none':
-                await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
-                return
             article_pattern = await ms_design.MessageDrawer.make_article(day, tasks[0]['topic'], article['text'])
             await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern,
                                    reply_markup=(InlineKeyboardMarkup(row_width=1)
@@ -148,19 +140,15 @@ class DemoCalendar:
         elif data == DemoCallbackData.demo_subtaskday_it:
             sub = Subjects.IT
             await callback.message.delete()
-            material = await task_con.get_random_task(sub)
             md = ms_design.MessageDrawer(callback, HandlerType.CALLBACK)
-            if material.result.status == 500:
-                await md.server_error(material.result.status, "❌ Произошла ошибка при получении материала.")
+            material = await RandomStuffGetter.get(sub)
+            if material is None:
+                await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
                 return
             article = material.json['article']
             quiz = material.json['quiz']
             tasks = material.json['task']
             day = article['day']
-            if tasks[0]['text'].lower() == 'none' or tasks[1]['text'].lower() == 'none' or quiz[0]['text'].lower() == 'none' or article[
-                'text'].lower() == 'none':
-                await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
-                return
             article_pattern = await ms_design.MessageDrawer.make_article(day, tasks[0]['topic'], article['text'])
             await bot.send_message(chat_id=callback.message.chat.id, text=article_pattern,
                                    reply_markup=(InlineKeyboardMarkup(row_width=1)

@@ -1,5 +1,4 @@
 import asyncio
-
 import aiogram.types
 from aiogram.types import InputFile
 import aiogram.utils.markdown as fmt

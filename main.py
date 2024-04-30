@@ -101,7 +101,6 @@ async def event_calendar_button_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(text=DemoCallbackData.demo_calendar.value)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
 async def demo_event_calendar_button_callback(callback: types.CallbackQuery):
     await DemoCalendar.on_button_click(DemoCallbackData.demo_calendar, callback, callback.message.chat.id)
 
@@ -109,7 +108,6 @@ async def demo_event_calendar_button_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(text=DemoCallbackData.demo_subtaskday_math.value)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
 async def demo_subtaskday_math_button_callback(callback: types.CallbackQuery):
     await DemoCalendar.on_button_click(DemoCallbackData.demo_subtaskday_math, callback, callback.message.chat.id)
 
@@ -117,7 +115,6 @@ async def demo_subtaskday_math_button_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(text=DemoCallbackData.demo_subtaskday_phys.value)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
 async def demo_subtaskday_phys_button_callback(callback: types.CallbackQuery):
     await DemoCalendar.on_button_click(DemoCallbackData.demo_subtaskday_phys, callback, callback.message.chat.id)
 
@@ -125,7 +122,6 @@ async def demo_subtaskday_phys_button_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(text=DemoCallbackData.demo_subtaskday_it.value)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
 async def demo_subtaskday_it_button_callback(callback: types.CallbackQuery):
     await DemoCalendar.on_button_click(DemoCallbackData.demo_subtaskday_it, callback, callback.message.chat.id)
 
@@ -133,7 +129,6 @@ async def demo_subtaskday_it_button_callback(callback: types.CallbackQuery):
 @dp.callback_query_handler(text=DemoCallbackData.demo_taskday.value)
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
-@check_user_registered(HandlerType.CALLBACK)
 async def demo_taskday_button_callback(callback: types.CallbackQuery):
     await DemoCalendar.on_button_click(DemoCallbackData.demo_taskday, callback, callback.message.chat.id)
 
@@ -723,13 +718,15 @@ async def class_letter_choice_button_callback(callback: types.CallbackQuery):
             callback.from_user.id) and user.class_letter is None:
         student_letter = callback.data.split('_')[1]
         user.class_letter = student_letter
-        await register_new_student(callback.message, Student(
+        new_user = await register_new_student(callback.message, Student(
             telegram_id=callback.from_user.id,
             name=user.name,
             lastname=user.lastname,
             class_letter=user.class_letter,
             class_number=user.class_number
         ))
+        if new_user.result.status == 201:
+            await demo.DemoCalendar.event_calendar(chat_id=callback.message.chat.id)
         await reg_users_data.remove(callback.message.from_user.id)
         await reg_users.remove(callback.message.from_user.id)
         return

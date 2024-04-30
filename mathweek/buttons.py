@@ -4,6 +4,7 @@ import modules.demo_mode.demo as demo
 
 RegButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='🗝️ Зарегистрироваться', callback_data="reg"))
+                   .insert(demo.DemoCalendar.demo_button)
                    )
 TechSupportButtonClient = (InlineKeyboardMarkup(row_width=1)
                    .insert(InlineKeyboardButton(text='⚙️ Обратиться в техническую поддержку', url=Support.BOT.value)))
