@@ -20,7 +20,7 @@ class DemoCallbackData(enum.Enum):
 
 class DemoCalendar:
     """Демоверсия календаря события"""
-    demo_button = InlineKeyboardButton(text="📅 (ДЕМО) Календарь события",
+    demo_button = InlineKeyboardButton(text="🧩 (ДЕМО) Календарь события",
                                        callback_data=DemoCallbackData.demo_calendar.value)
 
     @staticmethod

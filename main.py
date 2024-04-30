@@ -90,6 +90,15 @@ async def event_calendar(message: types.Message):
     await MessageDrawer(message, HandlerType.MESSAGE).event_calendar()
 
 
+@dp.message_handler(commands=[BotCommandsEnum.DEMO_EVENT_CALENDAR.value])
+@Admin.bot_mode(mode, BotCommandsEnum.DEMO_EVENT_CALENDAR)
+@ExecutionController.catch_exception(mode, HandlerType.MESSAGE)
+@commands_detector(BotCommandsEnum.DEMO_EVENT_CALENDAR)
+async def demo_event_calendar(message: types.Message):
+    await message.delete()
+    await DemoCalendar.event_calendar(message.chat.id)
+
+
 @dp.callback_query_handler(text='event_calendar')
 @Admin.bot_mode(mode, BotCommandsEnum.handler, HandlerType.CALLBACK)
 @ExecutionController.catch_exception(mode, HandlerType.CALLBACK)
