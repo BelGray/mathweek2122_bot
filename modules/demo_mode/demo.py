@@ -64,8 +64,9 @@ class DemoCalendar:
             quiz = material.json['quiz']
             tasks = material.json['task']
             day = article['day']
-            if tasks[0]['text'] == 'None' or tasks[1]['text'] == 'None' or quiz[0]['text'] == 'None' or article[
-                'text'] == 'None':
+            if tasks[0]['text'].lower() == 'none' or tasks[1]['text'].lower() == 'none' or quiz[0][
+                'text'].lower() == 'none' or article[
+                'text'].lower() == 'none':
                 await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
                 return
             article_pattern = await ms_design.MessageDrawer.make_article(day, tasks[0]['topic'], article['text'])
@@ -74,7 +75,7 @@ class DemoCalendar:
                                    .insert(
                                        InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))))
 
-            await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
+            await md.quiz(quiz[0]['answers'], quiz[0]['text'])
             for task in tasks:
                 topic = task['topic']
                 task_type = task['type']
@@ -110,8 +111,9 @@ class DemoCalendar:
             quiz = material.json['quiz']
             tasks = material.json['task']
             day = article['day']
-            if tasks[0]['text'] == 'None' or tasks[1]['text'] == 'None' or quiz[0]['text'] == 'None' or article[
-                'text'] == 'None':
+            if tasks[0]['text'].lower() == 'none' or tasks[1]['text'].lower() == 'none' or quiz[0][
+                'text'].lower() == 'none' or article[
+                'text'].lower() == 'none':
                 await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
                 return
             article_pattern = await ms_design.MessageDrawer.make_article(day, tasks[0]['topic'], article['text'])
@@ -120,7 +122,7 @@ class DemoCalendar:
                                    .insert(
                                        InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))))
 
-            await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
+            await md.quiz(quiz[0]['answers'], quiz[0]['text'])
             for task in tasks:
                 topic = task['topic']
                 task_type = task['type']
@@ -155,8 +157,8 @@ class DemoCalendar:
             quiz = material.json['quiz']
             tasks = material.json['task']
             day = article['day']
-            if tasks[0]['text'] == 'None' or tasks[1]['text'] == 'None' or quiz[0]['text'] == 'None' or article[
-                'text'] == 'None':
+            if tasks[0]['text'].lower() == 'none' or tasks[1]['text'].lower() == 'none' or quiz[0]['text'].lower() == 'none' or article[
+                'text'].lower() == 'none':
                 await md.pic_error('system_images/not_found.png', "❌ Не удалось получить материал")
                 return
             article_pattern = await ms_design.MessageDrawer.make_article(day, tasks[0]['topic'], article['text'])
@@ -165,7 +167,7 @@ class DemoCalendar:
                                    .insert(
                                        InlineKeyboardButton(text='👁️‍ Скрыть', callback_data="clear"))))
 
-            await md.quiz(quiz[0]['answerList'], quiz[0]['text'])
+            await md.quiz(quiz[0]['answers'], quiz[0]['text'])
             for task in tasks:
                 topic = task['topic']
                 task_type = task['type']

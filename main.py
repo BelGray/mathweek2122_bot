@@ -338,13 +338,12 @@ async def taskdemoanswer_button_callback(callback: types.CallbackQuery):
         data = callback.data.split("_")
         task_id = int(data[1])
         await demo_task_id_input.set(callback.from_user.id, task_id)
-        await bot.send_message(chat_id=callback.message.chat.id, text="💬 Введи ответ на задание: ",
-                               reply_markup=StopDemoAnswerButtonClient)
+        await callback.message.answer(text="💬 Введи ответ на задание: ", reply_markup=StopDemoAnswerButtonClient, reply=callback.message.message_id)
         await DemoAnswerInput.demo_answer.set()
     else:
         await callback.answer('✏️ Ты уже отвечаешь на это задание!', show_alert=True)
 
-@dp.callback_query_handler(text='stop_answer', state=DemoAnswerInput.demo_answer)
+@dp.callback_query_handler(text='stop_demo_answer', state=DemoAnswerInput.demo_answer)
 async def stop_demo_answer_button_callback(callback: types.CallbackQuery, state: FSMContext):
     await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
     if demo_task_id_input.is_involved(callback.from_user.id):
