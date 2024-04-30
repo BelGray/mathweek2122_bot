@@ -11,7 +11,7 @@ from modules.server.requests_instance import task_con
 class RandomStuffGetter:
     """Механизм для гарантированного получения случайного материала"""
     @staticmethod
-    async def get(subject: Subjects, interval: float = 0.5) -> Union[ServerResponse, None]:
+    async def get(subject: Subjects, interval: float = 0.25) -> Union[ServerResponse, None]:
         while True:
             try:
                 material = await task_con.get_random_task(subject)
