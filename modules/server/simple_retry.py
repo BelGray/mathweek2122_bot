@@ -25,9 +25,7 @@ class RandomStuffGetter:
                         await asyncio.sleep(interval)
                         continue
                     return material
-                if material.result.status == 500:
-                    return None
-                await asyncio.sleep(interval)
+                return None
             except aiohttp.client_exceptions.ClientConnectionError:
                 return None
 
