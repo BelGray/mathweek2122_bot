@@ -17,7 +17,7 @@ class BotMode(enum.Enum):
 
 class BotConfigKeys(enum.Enum):
     TELEGRAM_API_TOKEN = "telegram_api_token"
-    SERVER_DOMAIN = "server_domain"
+    SERVER_URL = "server_url"
 
 
 class BotConfig:
@@ -45,28 +45,28 @@ class BotConfig:
             with open(self.__bytes_file, 'wb') as file:
                 serializable = {
                     BotConfigKeys.TELEGRAM_API_TOKEN.value: None,
-                    BotConfigKeys.SERVER_DOMAIN.value: None
+                    BotConfigKeys.SERVER_URL.value: None
                 }
                 pickle.dump(serializable, file)
 
         with open(self.__bytes_file, 'rb') as bytes_file:
             data = pickle.load(bytes_file)
             self.__telegram_token = data[BotConfigKeys.TELEGRAM_API_TOKEN.value]
-            self.__server = data[BotConfigKeys.SERVER_DOMAIN.value]
+            self.__server = data[BotConfigKeys.SERVER_URL.value]
 
         if self.__telegram_token is not None and self.__server is not None:
             reset = BGC.scan(
-                'Сбросить текущую конфигурацию бота (Telegram API токен, адрес сервера) ?\nY - Да, настроить всё заново\n<Enter> - Нет, запустить бота с текущей конфигурацией\n\n/> ',
+                'Сбросить текущую конфигурацию бота (Telegram API токен, base url) ?\nY - Да, настроить всё заново\n<Enter> - Нет, запустить бота с текущей конфигурацией\n\n/> ',
                 label_color=BGC.Color.MUSTARD
             )
             if reset.upper() == 'Y':
                 self.__telegram_token = self.set_token()
-                self.__server = self.set_server_domain()
+                self.__server = self.set_server_url()
             else:
                 pass
         else:
             self.__telegram_token = self.get_token()
-            self.__server = self.get_server_domain()
+            self.__server = self.get_server_url()
         atexit.register(self.__dump_config)
 
     @property
@@ -78,14 +78,14 @@ class BotConfig:
         return self.__telegram_token
 
     @property
-    def server_domain(self):
+    def server_url(self):
         return self.__server
 
     def __dump_config(self):
         with open(self.__bytes_file, 'wb') as file:
             serializable = {
                 BotConfigKeys.TELEGRAM_API_TOKEN.value: self.__telegram_token,
-                BotConfigKeys.SERVER_DOMAIN.value: self.__server
+                BotConfigKeys.SERVER_URL.value: self.__server
             }
             pickle.dump(serializable, file)
 
@@ -101,12 +101,12 @@ class BotConfig:
         new_token = BGC.scan('Telegram API токен /> ', label_color=BGC.Color.CRIMSON)
         return new_token
 
-    def get_server_domain(self) -> str:
-        domain = self.__read_config()[BotConfigKeys.SERVER_DOMAIN.value]
-        if domain is not None:
-            return domain
-        new_domain = BGC.scan('IP-адрес сервера (или localhost) /> ', label_color=BGC.Color.CRIMSON)
-        return new_domain
+    def get_server_url(self) -> str:
+        url = self.__read_config()[BotConfigKeys.SERVER_URL.value]
+        if url is not None:
+            return url
+        new_url = BGC.scan('Base URL (или localhost) /> ', label_color=BGC.Color.CRIMSON)
+        return new_url if new_url != "localhost" else "http://localhost:8080/"
 
     @classmethod
     def set_token(cls) -> str:
@@ -114,6 +114,6 @@ class BotConfig:
         return new_token
 
     @classmethod
-    def set_server_domain(cls) -> str:
-        new_domain = BGC.scan('IP-адрес сервера (или localhost) /> ', label_color=BGC.Color.CRIMSON)
-        return new_domain
+    def set_server_url(cls) -> str:
+        new_url = BGC.scan('Base URL (или localhost) /> ', label_color=BGC.Color.CRIMSON)
+        return new_url if new_url != "localhost" else "http://localhost:8080/"
