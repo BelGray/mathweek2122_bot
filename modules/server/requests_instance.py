@@ -8,7 +8,7 @@ from modules.server.entity_controllers.student_answer_controller import StudentA
 from modules.server.entity_controllers.student_controller import StudentController
 from modules.server.entity_controllers.task_controller import TaskController
 
-url = configuration_instance.server_url
+url = configuration_instance.server_url + "/"
 
 student_con = StudentController(url)
 article_con = ArticleController(url)
